@@ -1,0 +1,33 @@
+=======================================================
+  CREDENCIALES DE PRUEBA - RED COMERCIAL DE SALONES
+=======================================================
+
+ Todos los usuarios comparten la contrasena: Password123!
+
+-------------------------------------------------------
+  ROL          | EMAIL                | CONTRASENA
+-------------------------------------------------------
+  Admin        | admin@salon.test     | Password123!
+  Lider        | lider@salon.test     | Password123!
+  Salon        | salon@salon.test     | Password123!
+-------------------------------------------------------
+  Salon Demo   (asignado a: Lider Regional)
+
+Para cambiar de rol en el frontend (demo):
+  - Abrir consola del navegador y ejecutar:
+    localStorage.setItem('rc_role', 'admin')
+    localStorage.setItem('rc_role', 'lider')
+    localStorage.setItem('rc_role', 'salon')
+
+Roles disponibles en el sistema:
+  - admin: Acceso completo a todas las funciones
+  - lider: Gestion regional de salones, crear usuarios salon
+  - salon: Funciones basicas de salon (sin puntos)
+=======================================================
+Nueva funcionalidad:
+  - Admin y Lider pueden crear usuarios de salon desde
+    "Red Comercial" > boton "+ Crear usuario".
+  - El lider crea salones que quedan asignados a el.
+  - El admin puede elegir a que lider asignar el salon.
+  - Los puntos de compras van al lider, no al salon.
+=======================================================
