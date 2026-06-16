@@ -22,16 +22,34 @@ import {
     Typography,
 } from '@mui/material';
 import { FilterList, Search, ShoppingCart } from '@mui/icons-material';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { addToCart } from '@/rc/cart';
-import { products } from '@/rc/mock';
+import { products as mockProducts } from '@/rc/mock';
+import { refreshActivePromotions, getActivePromotions } from '@/rc/promotions';
 
 export default function PublicCatalog() {
     const auth = (usePage().props as any).auth;
     const user = auth?.user ?? null;
 
     const [filtersOpen, setFiltersOpen] = useState(false);
+    const [articles, setArticles] = useState<any[]>([]);
+    const [promoProductIds, setPromoProductIds] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        Promise.all([
+            fetch('/api/catalogo-articulos').then((r) => r.json()),
+            refreshActivePromotions(),
+        ]).then(([prods]) => {
+            setArticles(prods);
+            setPromoProductIds(new Set(
+                getActivePromotions().flatMap((p) => p.productIds),
+            ));
+        }).catch(() => {});
+    }, []);
+
+    const products = useMemo(() => [...articles, ...mockProducts], [articles]);
+
     const [query, setQuery] = useState('');
     const [category, setCategory] = useState<string>('');
     const [brand, setBrand] = useState<string>('');
@@ -40,11 +58,11 @@ export default function PublicCatalog() {
 
     const categories = useMemo(
         () => Array.from(new Set(products.map((p) => p.category))).sort(),
-        [],
+        [products],
     );
     const brands = useMemo(
         () => Array.from(new Set(products.map((p) => p.brand))).sort(),
-        [],
+        [products],
     );
 
     const list = useMemo(() => {
@@ -53,9 +71,9 @@ export default function PublicCatalog() {
             .filter((p) => (q ? p.name.toLowerCase().includes(q) : true))
             .filter((p) => (category ? p.category === category : true))
             .filter((p) => (brand ? p.brand === brand : true))
-            .filter((p) => (onlyPromos ? !!p.promo : true))
+            .filter((p) => (onlyPromos ? promoProductIds.has(p.id) : true))
             .filter((p) => p.price >= price[0] && p.price <= price[1]);
-    }, [query, category, brand, onlyPromos, price]);
+    }, [query, category, brand, onlyPromos, price, products]);
 
     const filters = (
         <Box sx={{ p: 2.25, width: 320 }}>
@@ -214,10 +232,11 @@ export default function PublicCatalog() {
                                 <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                                     <Box
                                         sx={{
-                                            height: 140,
+                                            aspectRatio: '4/3',
                                             bgcolor: 'grey.100',
-                                            background:
-                                                'linear-gradient(135deg, rgba(233,30,99,0.15), rgba(156,39,176,0.08))',
+                                            background: p.image
+                                                ? `url(${p.image}) center/cover no-repeat`
+                                                : undefined,
                                             borderBottom: '1px solid',
                                             borderColor: 'divider',
                                         }}
@@ -226,8 +245,8 @@ export default function PublicCatalog() {
                                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                             <Chip size="small" label={p.category} />
                                             <Chip size="small" variant="outlined" label={p.brand} />
-                                            {p.promo && (
-                                                <Chip size="small" color="secondary" label={`Promo: ${p.promo}`} />
+                                            {promoProductIds.has(p.id) && (
+                                                <Chip size="small" color="secondary" label="Promo" />
                                             )}
                                         </Stack>
                                         <Typography sx={{ mt: 1.25, fontWeight: 900 }}>

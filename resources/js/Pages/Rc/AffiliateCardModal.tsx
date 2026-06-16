@@ -219,153 +219,130 @@ export default function AffiliateCardModal({ open, onClose, user }: AffiliateCar
                                     position: 'absolute',
                                     inset: 0,
                                     backfaceVisibility: 'hidden',
-                                    borderRadius: 4,
-                                    background:
-                                        'linear-gradient(135deg, #e91e63 0%, #9c27b0 50%, #7b1fa2 100%)',
-                                    p: 3,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: 'space-between',
-                                    boxShadow:
-                                        '0 20px 60px rgba(233,30,99,0.3), 0 8px 20px rgba(0,0,0,0.15)',
-                                    transition: scanPhase === 'complete'
-                                        ? 'filter 300ms ease, brightness 300ms ease'
-                                        : 'none',
-                                    filter: scanPhase === 'complete' ? 'brightness(1.08) saturate(1.1)' : 'none',
-                                    '@media print': {
-                                        boxShadow: 'none',
-                                        WebkitPrintColorAdjust: 'exact',
-                                        printColorAdjust: 'exact',
-                                    },
-                                }}
-                            >
-                                <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                                    <Box>
+                                    borderRadius: 2,
+                                    background: 'linear-gradient(180deg, #EDDEB6 0%, #D4BA8A 30%, #C9AD7E 55%, #BFA16B 80%, #A8875A 100%)',
+                                    pt: 1,
+                                        pb: 4.5,
+                                        pl: 2.5,
+                                        pr: 2.5,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        boxShadow:
+                                            '0 20px 60px rgba(191,161,107,0.3), 0 8px 20px rgba(0,0,0,0.12)',
+                                        transition: scanPhase === 'complete'
+                                            ? 'filter 300ms ease, brightness 300ms ease'
+                                            : 'none',
+                                        filter: scanPhase === 'complete' ? 'brightness(1.08) saturate(1.1)' : 'none',
+                                        '@media print': {
+                                            boxShadow: 'none',
+                                            WebkitPrintColorAdjust: 'exact',
+                                            printColorAdjust: 'exact',
+                                        },
+                                    }}
+                                >
+                                    <Box
+                                        sx={{
+                                            flex: 1,
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            py: 2,
+                                            px: 2.5,
+                                    }}
+                                >
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
                                         <Box
+                                            component="img"
+                                            src="/storage/logo.png"
+                                            alt="Logo"
+                                                sx={{ height: 100, width: 'auto' }}
+                                        />
+                                            <Typography
                                             sx={{
-                                                width: 44,
-                                                height: 44,
-                                                borderRadius: 2.5,
-                                                display: 'grid',
-                                                placeItems: 'center',
-                                                bgcolor: 'rgba(255,255,255,0.2)',
-                                                color: 'common.white',
-                                                fontWeight: 950,
-                                                letterSpacing: -0.5,
-                                                fontSize: 18,
+                                                fontWeight: 700,
+                                                fontSize: 9,
+                                                letterSpacing: 3.5,
+                                                color: '#BFA16B',
+                                                lineHeight: 1,
                                             }}
                                         >
-                                            RC
-                                        </Box>
+                                            BEAUTY NETWORK
+                                        </Typography>
                                     </Box>
-                                    <Typography
+
+                                    <Box
                                         sx={{
-                                            color: 'rgba(255,255,255,0.85)',
-                                            fontSize: 10,
-                                            fontWeight: 700,
-                                            textTransform: 'uppercase',
-                                            letterSpacing: 1.2,
+                                            bgcolor: '#8C7347',
+                                            borderRadius: 1,
+                                            px: 2.5,
+                                            py: 0.6,
                                         }}
                                     >
-                                        Afiliado
-                                    </Typography>
-                                </Stack>
-
-                                <Box>
-                                    <Typography
-                                        sx={{
-                                            color: 'common.white',
-                                            fontWeight: 950,
-                                            fontSize: 28,
-                                            letterSpacing: 1,
-                                            lineHeight: 1.1,
-                                        }}
-                                    >
-                                        {member.name}
-                                    </Typography>
-                                    <Stack direction="row" spacing={3} sx={{ mt: 1.5 }}>
-                                        <Box>
-                                            <Typography
-                                                sx={{
-                                                    color: 'rgba(255,255,255,0.6)',
-                                                    fontSize: 9,
-                                                    fontWeight: 700,
-                                                    textTransform: 'uppercase',
-                                                    letterSpacing: 1,
-                                                }}
-                                            >
-                                                Membresía
-                                            </Typography>
-                                            <Typography
-                                                sx={{
-                                                    color: 'common.white',
-                                                    fontWeight: 900,
-                                                    fontSize: 14,
-                                                    mt: 0.25,
-                                                }}
-                                            >
-                                                {member.level}
-                                            </Typography>
-                                        </Box>
-                                        <Box>
-                                            <Typography
-                                                sx={{
-                                                    color: 'rgba(255,255,255,0.6)',
-                                                    fontSize: 9,
-                                                    fontWeight: 700,
-                                                    textTransform: 'uppercase',
-                                                    letterSpacing: 1,
-                                                }}
-                                            >
-                                                ID
-                                            </Typography>
-                                            <Typography
-                                                sx={{
-                                                    color: 'common.white',
-                                                    fontWeight: 900,
-                                                    fontSize: 14,
-                                                    mt: 0.25,
-                                                }}
-                                            >
-                                                {member.id}
-                                            </Typography>
-                                        </Box>
-                                    </Stack>
-                                </Box>
-
-                                <Stack direction="row" justifyContent="space-between" alignItems="flex-end">
-                                    <Box>
                                         <Typography
                                             sx={{
-                                                color: 'rgba(255,255,255,0.5)',
-                                                fontSize: 8,
-                                                fontWeight: 600,
+                                                fontWeight: 800,
+                                                fontSize: 13,
+                                                letterSpacing: 4,
+                                                color: '#F5F0E8',
                                                 textTransform: 'uppercase',
-                                                letterSpacing: 0.8,
                                             }}
                                         >
-                                            Red Comercial de Salones
+                                            {member.level}
+                                        </Typography>
+                                    </Box>
+
+                                    <Box sx={{ textAlign: 'center' }}>
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 600,
+                                                fontSize: 10,
+                                                letterSpacing: 2.5,
+                                                color: '#0F4F63',
+                                                textTransform: 'uppercase',
+                                            }}
+                                        >
+                                            MEMBER STATUS
                                         </Typography>
                                         <Typography
                                             sx={{
-                                                color: 'rgba(255,255,255,0.4)',
-                                                fontSize: 8,
-                                                letterSpacing: 0.5,
+                                                fontWeight: 800,
+                                                fontSize: 16,
+                                                letterSpacing: 3,
+                                                color: '#0F4F63',
+                                                textTransform: 'uppercase',
+                                                lineHeight: 1.2,
                                             }}
                                         >
-                                            Salones Profesionales
+                                            AFILIADO
                                         </Typography>
                                     </Box>
-                                    <Typography
-                                        sx={{
-                                            color: 'rgba(255,255,255,0.5)',
-                                            fontSize: 9,
-                                            fontWeight: 600,
-                                        }}
-                                    >
-                                        Desde {member.since}
-                                    </Typography>
-                                </Stack>
+
+                                    <Box sx={{ width: '100%' }}>
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 700,
+                                                fontSize: 10,
+                                                letterSpacing: 0.5,
+                                                color: '#111111',
+                                                textAlign: 'center',
+                                            }}
+                                        >
+                                            NÚMERO DE SOCIO: {member.id}
+                                        </Typography>
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 700,
+                                                fontSize: 10,
+                                                letterSpacing: 0.5,
+                                                color: '#111111',
+                                                textAlign: 'center',
+                                            }}
+                                        >
+                                            VIGENCIA HASTA: {member.expires}
+                                        </Typography>
+                                    </Box>
+                                </Box>
                             </Box>
 
                             {/* Back */}
@@ -375,7 +352,7 @@ export default function AffiliateCardModal({ open, onClose, user }: AffiliateCar
                                     inset: 0,
                                     backfaceVisibility: 'hidden',
                                     transform: 'rotateY(180deg)',
-                                    borderRadius: 4,
+                                    borderRadius: 2,
                                     bgcolor: 'common.white',
                                     p: 2.5,
                                     display: 'flex',
@@ -497,34 +474,32 @@ export default function AffiliateCardModal({ open, onClose, user }: AffiliateCar
                                     sx={{
                                         position: 'absolute',
                                         inset: 0,
-                                        borderRadius: 4,
+                                        borderRadius: 2,
                                         overflow: 'hidden',
                                         pointerEvents: 'none',
                                         zIndex: 10,
                                     }}
                                 >
-                                    <Box
-                                        sx={{
-                                            position: 'absolute',
-                                            left: '-10%',
-                                            right: '-10%',
-                                            height: 4,
-                                            background:
-                                                'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.9) 30%, rgba(255,255,255,1) 50%, rgba(255,255,255,0.9) 70%, transparent 100%)',
-                                            boxShadow:
-                                                '0 0 30px rgba(255,255,255,0.8), 0 0 60px rgba(255,255,255,0.4)',
-                                            animation: 'modalScanMove 1.4s ease-in-out forwards',
-                                        }}
-                                    />
-                                    <Box
-                                        sx={{
-                                            position: 'absolute',
-                                            inset: 0,
-                                            background:
-                                                'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.08) 40%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.08) 60%, transparent 100%)',
-                                            animation: 'modalScanGlow 1.4s ease-in-out forwards',
-                                        }}
-                                    />
+                                        <Box
+                                            sx={{
+                                                position: 'absolute',
+                                                left: '-10%',
+                                                right: '-10%',
+                                                height: 4,
+                                                bgcolor: 'common.white',
+                                                boxShadow:
+                                                    '0 0 30px rgba(255,255,255,0.8), 0 0 60px rgba(255,255,255,0.4)',
+                                                animation: 'modalScanMove 1.4s ease-in-out forwards',
+                                            }}
+                                        />
+                                        <Box
+                                            sx={{
+                                                position: 'absolute',
+                                                inset: 0,
+                                                bgcolor: 'rgba(255,255,255,0.1)',
+                                                animation: 'modalScanGlow 1.4s ease-in-out forwards',
+                                            }}
+                                        />
                                 </Box>
                             )}
 
@@ -533,9 +508,8 @@ export default function AffiliateCardModal({ open, onClose, user }: AffiliateCar
                                     sx={{
                                         position: 'absolute',
                                         inset: -8,
-                                        borderRadius: 5,
-                                        background:
-                                            'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.35), transparent 70%)',
+                                        borderRadius: 2,
+                                        bgcolor: 'rgba(255,255,255,0.25)',
                                         animation: 'modalScanFlash 0.5s ease-out forwards',
                                         pointerEvents: 'none',
                                         zIndex: 10,
@@ -558,8 +532,7 @@ export default function AffiliateCardModal({ open, onClose, user }: AffiliateCar
                             onClick={handlePrint}
                             disabled={scanning}
                             sx={{
-                                background:
-                                    'linear-gradient(135deg, rgba(233,30,99,1) 0%, rgba(156,39,176,1) 100%)',
+                                bgcolor: 'primary.main',
                                 boxShadow: '0 18px 40px rgba(233,30,99,0.22)',
                                 opacity: scanning ? 0.7 : 1,
                             }}

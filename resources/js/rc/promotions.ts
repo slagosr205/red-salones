@@ -1,7 +1,4 @@
-import { safeGetItem, safeSetItem } from './storage';
-import { products } from './mock';
-
-const PROMO_KEY = 'rc_promotions';
+import axios from 'axios';
 
 export type PromoType = '2x1' | 'descuento' | 'combo';
 
@@ -14,116 +11,25 @@ export type Promotion = {
   endDate: string;
   active: boolean;
   productIds: string[];
-  createdAt: string;
+  createdAt?: string;
 };
 
-const defaultPromotions: Promotion[] = [
-  {
-    id: 'promo-default-1',
-    name: '2x1 en Tinte Profesional',
-    type: '2x1',
-    value: 0,
-    startDate: '2026-01-01',
-    endDate: '2026-12-31',
-    active: true,
-    productIds: ['p-005'],
-    createdAt: '2026-01-01',
-  },
-  {
-    id: 'promo-default-2',
-    name: '15% descuento en Shampoo Repair',
-    type: 'descuento',
-    value: 15,
-    startDate: '2026-01-01',
-    endDate: '2026-12-31',
-    active: true,
-    productIds: ['p-001'],
-    createdAt: '2026-01-01',
-  },
-  {
-    id: 'promo-default-3',
-    name: '10% combo en Mascarilla Nutritiva',
-    type: 'combo',
-    value: 10,
-    startDate: '2026-01-01',
-    endDate: '2026-12-31',
-    active: true,
-    productIds: ['p-003'],
-    createdAt: '2026-01-01',
-  },
-  {
-    id: 'promo-default-4',
-    name: '15% descuento en Guantes Nitrilo',
-    type: 'descuento',
-    value: 15,
-    startDate: '2026-01-01',
-    endDate: '2026-12-31',
-    active: true,
-    productIds: ['p-008'],
-    createdAt: '2026-01-01',
-  },
-];
+let activePromotionsCache: Promotion[] = [];
 
-function parse(raw: string | null): Promotion[] {
-  if (!raw) return defaultPromotions;
+export async function refreshActivePromotions(): Promise<Promotion[]> {
   try {
-    const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : defaultPromotions;
+    const res = await fetch('/api/promociones-activas');
+    const data = await res.json();
+    activePromotionsCache = Array.isArray(data) ? data : [];
   } catch {
-    return defaultPromotions;
+    activePromotionsCache = [];
   }
-}
-
-export function getPromotions(): Promotion[] {
-  return parse(safeGetItem(PROMO_KEY));
-}
-
-export function setPromotions(list: Promotion[]) {
-  safeSetItem(PROMO_KEY, JSON.stringify(list));
   window.dispatchEvent(new Event('rc_promotions_changed'));
-}
-
-export function createPromotion(p: Omit<Promotion, 'id' | 'createdAt'>): Promotion {
-  const all = getPromotions();
-  const promo: Promotion = {
-    ...p,
-    id: `promo-${Math.random().toString(16).slice(2, 10)}`,
-    createdAt: new Date().toISOString(),
-  };
-  all.push(promo);
-  setPromotions(all);
-  return promo;
-}
-
-export function updatePromotion(id: string, data: Partial<Promotion>) {
-  const all = getPromotions();
-  const idx = all.findIndex((p) => p.id === id);
-  if (idx < 0) return;
-  all[idx] = { ...all[idx], ...data };
-  setPromotions(all);
-}
-
-export function deletePromotion(id: string) {
-  setPromotions(getPromotions().filter((p) => p.id !== id));
-}
-
-export function togglePromotion(id: string) {
-  const all = getPromotions();
-  const idx = all.findIndex((p) => p.id === id);
-  if (idx < 0) return;
-  all[idx] = { ...all[idx], active: !all[idx].active };
-  setPromotions(all);
+  return activePromotionsCache;
 }
 
 export function getActivePromotions(): Promotion[] {
-  const now = new Date();
-  return getPromotions().filter((p) => {
-    if (!p.active) return false;
-    const start = new Date(p.startDate);
-    const end = new Date(p.endDate);
-    end.setHours(23, 59, 59, 999);
-    return now >= start && now <= end;
-  });
+  return activePromotionsCache;
 }
 
 export function getPromotionsForProduct(productId: string): Promotion[] {
@@ -148,7 +54,70 @@ export function getDiscountForProduct(productId: string, price: number, qty: num
   return totalDiscount;
 }
 
-export function resetPromotions() {
-  safeSetItem(PROMO_KEY, JSON.stringify(defaultPromotions));
-  window.dispatchEvent(new Event('rc_promotions_changed'));
+export async function fetchPromotions(): Promise<Promotion[]> {
+  const res = await axios.get('/api/promociones');
+  return (res.data as any[]).map((p: any) => ({
+    id: String(p.id),
+    name: p.name,
+    type: p.type,
+    value: Number(p.value),
+    startDate: p.start_date,
+    endDate: p.end_date,
+    active: p.active,
+    productIds: (p.articles ?? []).map((a: any) => 'art-' + a.id),
+    createdAt: p.created_at,
+  }));
+}
+
+export async function createPromotion(data: {
+  name: string;
+  type: PromoType;
+  value: number;
+  startDate: string;
+  endDate: string;
+  active: boolean;
+  article_ids: number[];
+}): Promise<Promotion> {
+  const res = await axios.post('/api/promociones', {
+    name: data.name,
+    type: data.type,
+    value: data.value,
+    start_date: data.startDate,
+    end_date: data.endDate,
+    active: data.active,
+    article_ids: data.article_ids,
+  });
+  return res.data;
+}
+
+export async function updatePromotion(
+  id: string | number,
+  data: {
+    name: string;
+    type: PromoType;
+    value: number;
+    startDate: string;
+    endDate: string;
+    active: boolean;
+    article_ids: number[];
+  },
+): Promise<Promotion> {
+  const res = await axios.put(`/api/promociones/${id}`, {
+    name: data.name,
+    type: data.type,
+    value: data.value,
+    start_date: data.startDate,
+    end_date: data.endDate,
+    active: data.active,
+    article_ids: data.article_ids,
+  });
+  return res.data;
+}
+
+export async function deletePromotion(id: string | number): Promise<void> {
+  await axios.delete(`/api/promociones/${id}`);
+}
+
+export async function togglePromotion(id: string | number): Promise<void> {
+  await axios.post(`/api/promociones/${id}/toggle`);
 }

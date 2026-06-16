@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import {
     Alert,
+    Autocomplete,
     Box,
     Button,
     Card,
@@ -24,17 +25,63 @@ import {
     Typography,
 } from '@mui/material';
 import { FilterList, Search } from '@mui/icons-material';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { addToCart } from '@/rc/cart';
-import { products } from '@/rc/mock';
+import { refreshActivePromotions, getActivePromotions } from '@/rc/promotions';
+import { usePage } from '@inertiajs/react';
+
+function effectivePrice(p: any, role: string): number {
+    if (role === 'lider' || role === 'admin') {
+        return p.leader_price ?? p.price ?? 0;
+    }
+    return p.price ?? 0;
+}
+
+function scoreProduct(query: string, p: any): number {
+    const q = query.trim().toLowerCase();
+    if (!q) return 1;
+    const name = p.name?.toLowerCase() ?? '';
+    const brand = p.brand?.toLowerCase() ?? '';
+    const category = p.category?.toLowerCase() ?? '';
+    if (name === q) return 100;
+    if (name.startsWith(q)) return 90;
+    if (name.includes(q)) return 80;
+    if (brand.includes(q)) return 50;
+    if (category.includes(q)) return 40;
+    return 0;
+}
 
 export default function ProductsPage() {
+    const { auth } = usePage().props as any;
+    const userRole: string = auth?.user?.role ?? 'salon';
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarProduct, setSnackbarProduct] = useState('');
-
+    const [products, setProducts] = useState<any[]>([]);
+    const [promoProductIds, setPromoProductIds] = useState<Set<string>>(new Set());
+    const [searchValue, setSearchValue] = useState('');
     const [query, setQuery] = useState('');
+    const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+    useEffect(() => {
+        Promise.all([
+            fetch('/api/catalogo-articulos').then((r) => r.json()),
+            refreshActivePromotions(),
+        ]).then(([prods]) => {
+            setProducts(prods);
+            setPromoProductIds(new Set(
+                getActivePromotions().flatMap((p) => p.productIds),
+            ));
+        }).catch(() => {});
+    }, []);
+
+    const handleSearchInput = useCallback((_: any, value: string) => {
+        setSearchValue(value);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => setQuery(value), 250);
+    }, []);
+
     const [category, setCategory] = useState<string>('');
     const [brand, setBrand] = useState<string>('');
     const [onlyPromos, setOnlyPromos] = useState(false);
@@ -42,22 +89,33 @@ export default function ProductsPage() {
 
     const categories = useMemo(
         () => Array.from(new Set(products.map((p) => p.category))).sort(),
-        [],
+        [products],
     );
     const brands = useMemo(
         () => Array.from(new Set(products.map((p) => p.brand))).sort(),
-        [],
+        [products],
     );
+
+    const suggestions = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q || q.length < 2) return [];
+        return products
+            .map((p) => ({ p, score: scoreProduct(q, p) }))
+            .filter((x) => x.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 8)
+            .map((x) => x.p);
+    }, [query, products]);
 
     const list = useMemo(() => {
         const q = query.trim().toLowerCase();
         return products
-            .filter((p) => (q ? p.name.toLowerCase().includes(q) : true))
+            .filter((p) => (q ? scoreProduct(q, p) > 0 : true))
             .filter((p) => (category ? p.category === category : true))
             .filter((p) => (brand ? p.brand === brand : true))
-            .filter((p) => (onlyPromos ? !!p.promo : true))
-            .filter((p) => p.price >= price[0] && p.price <= price[1]);
-    }, [query, category, brand, onlyPromos, price]);
+            .filter((p) => (onlyPromos ? promoProductIds.has(p.id) : true))
+            .filter((p) => effectivePrice(p, userRole) >= price[0] && effectivePrice(p, userRole) <= price[1]);
+    }, [query, category, brand, onlyPromos, price, products]);
 
     const filters = (
         <Box sx={{ p: 2.25, width: 320 }}>
@@ -69,20 +127,6 @@ export default function ProductsPage() {
             </Typography>
 
             <Stack spacing={2} sx={{ mt: 2 }}>
-                <TextField
-                    label="Buscar"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <Search fontSize="small" />
-                            </InputAdornment>
-                        ),
-                    }}
-                    size="small"
-                />
-
                 <FormControl size="small">
                     <Typography variant="caption" color="text.secondary">
                         Categoria
@@ -146,6 +190,7 @@ export default function ProductsPage() {
                 <Button
                     variant="outlined"
                     onClick={() => {
+                        setSearchValue('');
                         setQuery('');
                         setCategory('');
                         setBrand('');
@@ -169,7 +214,7 @@ export default function ProductsPage() {
                         Catalogo
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                        Tarjetas visuales, busqueda instantanea y compra rapida.
+                        Busqueda inteligente — encuentra por nombre, marca o categoria.
                     </Typography>
                 </Stack>
                 <Stack direction="row" spacing={1}>
@@ -182,6 +227,58 @@ export default function ProductsPage() {
                 </Stack>
             </Stack>
 
+            <Autocomplete
+                freeSolo
+                value={searchValue}
+                onInputChange={handleSearchInput}
+                options={suggestions}
+                getOptionLabel={(o: any) => (typeof o === 'string' ? o : o.name)}
+                renderOption={(props, o: any) => {
+                    const { key, ...rest } = props;
+                    return (
+                        <Box component="li" key={key} {...rest} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1 }}>
+                            <Box
+                                sx={{
+                                    width: 40, height: 40, borderRadius: 1,
+                                    bgcolor: 'grey.100',
+                                    background: o.image ? `url(${o.image}) center/cover no-repeat` : undefined,
+                                    flexShrink: 0,
+                                }}
+                            />
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{o.name}</Typography>
+                                <Typography variant="caption" color="text.secondary" noWrap>{o.brand} &middot; {o.category}</Typography>
+                            </Box>
+                            <Typography variant="body2" sx={{ fontWeight: 700, flexShrink: 0 }}>L {effectivePrice(o, userRole).toFixed(2)}</Typography>
+                        </Box>
+                    );
+                }}
+                renderInput={(params) => (
+                    <TextField
+                        {...params}
+                        placeholder="Buscar por nombre, marca o categoria..."
+                        slotProps={{
+                            input: {
+                                ...params.InputProps,
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Search />
+                                    </InputAdornment>
+                                ),
+                            },
+                        }}
+                        sx={{ mb: 2 }}
+                    />
+                )}
+                onChange={(_, v) => {
+                    if (v && typeof v === 'object') {
+                        setSearchValue((v as any).name);
+                        setQuery((v as any).name);
+                    }
+                }}
+                clearOnBlur={false}
+            />
+
             <Drawer anchor="right" open={filtersOpen} onClose={() => setFiltersOpen(false)}>
                 {filters}
             </Drawer>
@@ -192,10 +289,11 @@ export default function ProductsPage() {
                         <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                             <Box
                                 sx={{
-                                    height: 140,
+                                    aspectRatio: '4/3',
                                     bgcolor: 'grey.100',
-                                    background:
-                                        'linear-gradient(135deg, rgba(233,30,99,0.15), rgba(156,39,176,0.08))',
+                                    background: p.image
+                                        ? `url(${p.image}) center/cover no-repeat`
+                                        : undefined,
                                     borderBottom: '1px solid',
                                     borderColor: 'divider',
                                 }}
@@ -204,16 +302,13 @@ export default function ProductsPage() {
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                     <Chip size="small" label={p.category} />
                                     <Chip size="small" variant="outlined" label={p.brand} />
-                                    {p.promo && (
-                                        <Chip size="small" color="secondary" label={`Promo: ${p.promo}`} />
-                                    )}
                                 </Stack>
                                 <Typography sx={{ mt: 1.25, fontWeight: 900 }}>
                                     {p.name}
                                 </Typography>
                                 <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mt: 1 }}>
                                     <Typography variant="h6" sx={{ fontWeight: 900 }}>
-                                        L {p.price.toFixed(2)}
+                                        L {effectivePrice(p, userRole).toFixed(2)}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
                                         {p.points} puntos

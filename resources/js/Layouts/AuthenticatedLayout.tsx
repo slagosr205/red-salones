@@ -58,9 +58,11 @@ const routeMap: Record<string, string> = {
     'rc.orders': '/rc/pedidos',
     'rc.reports': '/rc/reportes',
     'rc.pending': '/rc/pendientes',
+    'rc.articles': '/rc/articulos',
     'rc.masterclasses': '/rc/master-classes',
     'rc.inventory': '/rc/inventario',
     'rc.settings': '/rc/configuracion',
+    'rc.pos': '/rc/pos',
 };
 
 function useNav(role: RcRole): NavItem[] {
@@ -77,7 +79,7 @@ function useNav(role: RcRole): NavItem[] {
             },
         ];
 
-        if (role === 'salon' || role === 'lider' || role === 'admin') {
+        if (role === 'salon' || role === 'lider') {
             items.push(
                 {
                     key: 'products',
@@ -124,11 +126,25 @@ function useNav(role: RcRole): NavItem[] {
 
         if (role === 'admin') {
             items.push({
+                key: 'pos',
+                label: 'POS',
+                href: '/rc/pos',
+                icon: <Storefront fontSize="small" />,
+                active: isActive('rc.pos'),
+            });
+            items.push({
                 key: 'promotions',
                 label: 'Promociones',
                 href: '/rc/promociones',
                 icon: <WorkspacePremium fontSize="small" />,
                 active: isActive('rc.promotions'),
+            });
+            items.push({
+                key: 'articles',
+                label: 'Artículos',
+                href: '/rc/articulos',
+                icon: <WorkspacePremium fontSize="small" />,
+                active: isActive('rc.articles'),
             });
         }
 
@@ -219,10 +235,17 @@ export default function Authenticated({
 
     const drawer = (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ px: 2, py: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
-                    Red Comercial
-                </Typography>
+            <Box sx={{ px: 2.5, pt: 8, pb: 3 }}>
+                <Box
+                    component="img"
+                    src="/storage/logo.png"
+                    alt="Logo"
+                    sx={{
+                        height: 120,
+                        width: 'auto',
+                        display: 'block',
+                    }}
+                />
                 <Typography variant="body2" color="text.secondary">
                     {role === 'admin'
                         ? 'Administrador'
@@ -341,7 +364,7 @@ export default function Authenticated({
                         ))}
                     </Popover>
 
-                    {(role === 'salon' || role === 'lider' || role === 'admin') && (
+                    {(role === 'salon' || role === 'lider') && (
                         <IconButton
                             aria-label="carrito"
                             onClick={() => router.visit(route('rc.cart'))}

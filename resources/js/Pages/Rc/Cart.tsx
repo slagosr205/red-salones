@@ -29,8 +29,8 @@ import PaymentDialog from '@/Components/PaymentDialog';
 import ReceiptDialog from '@/Components/ReceiptDialog';
 import { clearCart, getCart, removeFromCart, updateQty } from '@/rc/cart';
 import { deductStock } from '@/rc/inventory';
-import { getDiscountForProduct } from '@/rc/promotions';
-import { products } from '@/rc/mock';
+import { getDiscountForProduct, getPromotionsForProduct, refreshActivePromotions } from '@/rc/promotions';
+import { products as mockProducts } from '@/rc/mock';
 import { getLeaderEmail } from '@/rc/network';
 import { addNotification } from '@/rc/notifications';
 import { addPointsEvent } from '@/rc/points';
@@ -45,7 +45,14 @@ const salones = [
     { id: 's-003', name: 'Salon Nova Beauty', email: 'nova@salon.hn' },
 ];
 
-function discountFor(p: (typeof products)[number], q: number) {
+function effectivePrice(p: any, role: string): number {
+    if (role === 'lider' || role === 'admin') {
+        return p.leader_price ?? p.price ?? 0;
+    }
+    return p.price ?? 0;
+}
+
+function discountFor(p: { id: string; price: number } & Record<string, any>, q: number) {
     return getDiscountForProduct(p.id, p.price, q);
 }
 
@@ -60,12 +67,21 @@ export default function CartPage() {
     const [cart, setCartState] = useState(() => getCart());
     const [selectedSalon, setSelectedSalon] = useState(salones[0].id);
     const [receiptOpen, setReceiptOpen] = useState(false);
+    const [articles, setArticles] = useState<any[]>([]);
+    const [imageModal, setImageModal] = useState('');
     const [receiptItems, setReceiptItems] = useState<Array<{
-        product: (typeof products)[number];
+        product: any;
         qty: number;
         total: number;
         discount: number;
     }>>([]);
+
+    useEffect(() => {
+        Promise.all([
+            fetch('/api/catalogo-articulos').then((r) => r.json()),
+            refreshActivePromotions(),
+        ]).then(([prods]) => setArticles(prods)).catch(() => {});
+    }, []);
 
     useEffect(() => {
         const onChange = () => setCartState(getCart());
@@ -73,26 +89,31 @@ export default function CartPage() {
         return () => window.removeEventListener('rc_cart_changed', onChange);
     }, []);
 
+    const allProducts = useMemo(() => [...articles, ...mockProducts], [articles]);
+
     const rows = useMemo(() => {
         return cart
             .map((ci) => {
-                const p = products.find((x) => x.id === ci.productId);
+                const p = allProducts.find((x: any) => x.id === ci.productId);
                 if (!p) return null;
+                const unitPrice = effectivePrice(p, userRole);
                 return {
                     ...ci,
                     product: p,
-                    total: p.price * ci.qty,
+                    unitPrice,
+                    total: unitPrice * ci.qty,
                     points: p.points * ci.qty,
                 };
             })
             .filter(Boolean) as Array<{
             productId: string;
             qty: number;
-            product: (typeof products)[number];
+            product: any;
+            unitPrice: number;
             total: number;
             points: number;
         }>;
-    }, [cart]);
+    }, [cart, allProducts, userRole]);
 
     const subtotal = rows.reduce((acc, r) => acc + r.total, 0);
     const totalDiscount = rows.reduce((acc, r) => acc + discountFor(r.product, r.qty), 0);
@@ -112,15 +133,18 @@ export default function CartPage() {
 
         try {
             await axios.post(route('rc.orders.store'), {
-                items: rows.map((r) => ({
-                    product_name: r.product.name,
-                    product_id: r.product.id,
-                    quantity: r.qty,
-                    unit_price: r.product.price,
-                    discount: discountFor(r.product, r.qty),
-                    promo_type: null,
-                    subtotal: r.total,
-                })),
+                items: rows.map((r) => {
+                    const promos = getPromotionsForProduct(r.product.id);
+                    return {
+                        product_name: r.product.name,
+                        product_id: r.product.id,
+                        quantity: r.qty,
+                        unit_price: r.unitPrice,
+                        discount: discountFor(r.product, r.qty),
+                        promo_type: promos.length > 0 ? promos[0].type : null,
+                        subtotal: r.total,
+                    };
+                }),
                 subtotal,
                 total_discount: totalDiscount,
                 isv: taxable * 0.15,
@@ -221,15 +245,18 @@ export default function CartPage() {
                                 <CardContent>
                                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
                                         <Box
+                                            onClick={() => r.product.image && setImageModal(r.product.image)}
                                             sx={{
                                                 width: 88,
-                                                height: 56,
+                                                aspectRatio: '4/3',
                                                 borderRadius: 2,
                                                 bgcolor: 'grey.100',
-                                                background:
-                                                    'linear-gradient(135deg, rgba(233,30,99,0.15), rgba(156,39,176,0.08))',
+                                                    background: r.product.image
+                                                        ? `url(${r.product.image}) center/cover no-repeat`
+                                                        : undefined,
                                                 border: '1px solid',
                                                 borderColor: 'divider',
+                                                cursor: r.product.image ? 'pointer' : undefined,
                                             }}
                                         />
                                         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -237,7 +264,7 @@ export default function CartPage() {
                                                 {r.product.name}
                                             </Typography>
                                             <Typography variant="body2" color="text.secondary">
-                                                L {r.product.price.toFixed(2)} | {r.product.points} puntos
+                                                L {r.unitPrice.toFixed(2)} | {r.product.points} puntos
                                             </Typography>
                                         </Box>
                                         <Stack direction="row" spacing={1} alignItems="center">
@@ -387,6 +414,16 @@ export default function CartPage() {
                     onPaymentSuccess={finalizePurchase}
                 />
             </Elements>
+
+            <Dialog open={!!imageModal} onClose={() => setImageModal('')}>
+                {imageModal && (
+                    <Box
+                        component="img"
+                        src={imageModal}
+                        sx={{ width: 450, height: 450, objectFit: 'cover', display: 'block' }}
+                    />
+                )}
+            </Dialog>
         </AuthenticatedLayout>
     );
 }

@@ -14,26 +14,27 @@ import {
     FormControl,
     Grid,
     InputLabel,
+    InputAdornment,
     MenuItem,
     Select,
     Stack,
     TextField,
     Typography,
 } from '@mui/material';
-import { Add, CheckCircle, Delete, Edit, PanTool } from '@mui/icons-material';
+import { Add, CheckCircle, Delete, Edit, PanTool, Search } from '@mui/icons-material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
-    createPromotion,
-    deletePromotion,
-    getPromotions,
-    togglePromotion,
-    updatePromotion,
+    fetchPromotions,
+    createPromotion as apiCreate,
+    deletePromotion as apiDelete,
+    togglePromotion as apiToggle,
+    updatePromotion as apiUpdate,
+    refreshActivePromotions,
     type Promotion,
     type PromoType,
 } from '@/rc/promotions';
-import { products } from '@/rc/mock';
 
 const typeLabels: Record<PromoType, string> = {
     '2x1': '2x1',
@@ -47,30 +48,74 @@ const typeColors: Record<PromoType, 'primary' | 'secondary' | 'info'> = {
     combo: 'info',
 };
 
-const emptyForm = (): Omit<Promotion, 'id' | 'createdAt'> => ({
+interface CatalogArticle {
+    id: string;
+    name: string;
+    brand: string;
+    category: string;
+    price: number;
+}
+
+const emptyForm = () => ({
     name: '',
-    type: 'descuento',
+    type: 'descuento' as PromoType,
     value: 15,
     startDate: new Date().toISOString().slice(0, 10),
     endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     active: true,
-    productIds: [],
+    article_ids: [] as number[],
 });
 
-export default function PromotionsPage() {
-    const [promos, setPromos] = useState<Promotion[]>(() => getPromotions());
+function artIdToNumeric(artId: string): number {
+    return Number(artId.replace('art-', ''));
+}
 
-    useEffect(() => {
-        const onChange = () => setPromos(getPromotions());
-        window.addEventListener('rc_promotions_changed', onChange);
-        return () => window.removeEventListener('rc_promotions_changed', onChange);
+export default function PromotionsPage() {
+    const [promos, setPromos] = useState<Promotion[]>([]);
+    const [articles, setArticles] = useState<CatalogArticle[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [p, a] = await Promise.all([
+                fetchPromotions(),
+                fetch('/api/catalogo-articulos').then((r) => r.json()),
+            ]);
+            setPromos(p);
+            setArticles(a);
+        } catch { /* ignore */ }
+        setLoading(false);
     }, []);
+
+    useEffect(() => { load(); }, [load]);
 
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [form, setForm] = useState(emptyForm());
+    const [saving, setSaving] = useState(false);
 
     const activeCount = useMemo(() => promos.filter((p) => p.active).length, [promos]);
+    const [search, setSearch] = useState('');
+
+    function scorePromo(query: string, p: Promotion): number {
+        const q = query.trim().toLowerCase();
+        if (!q) return 1;
+        const name = p.name?.toLowerCase() ?? '';
+        const type = p.type?.toLowerCase() ?? '';
+        const active = p.active ? 'activa' : 'inactiva';
+        const typeLabel = typeLabels[p.type]?.toLowerCase() ?? '';
+        if (name === q || name.startsWith(q)) return 100;
+        if (name.includes(q)) return 90;
+        if (typeLabel.includes(q) || type.includes(q)) return 70;
+        if (active.includes(q)) return 60;
+        return 0;
+    }
+
+    const filteredPromos = useMemo(() => {
+        if (!search.trim()) return promos;
+        return promos.filter((p) => scorePromo(search, p) > 0);
+    }, [promos, search]);
 
     const openCreate = () => {
         setEditingId(null);
@@ -87,20 +132,49 @@ export default function PromotionsPage() {
             startDate: p.startDate,
             endDate: p.endDate,
             active: p.active,
-            productIds: p.productIds,
+            article_ids: p.productIds.map(artIdToNumeric),
         });
         setDialogOpen(true);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!form.name.trim()) return;
-        if (editingId) {
-            updatePromotion(editingId, form);
-        } else {
-            createPromotion(form);
-        }
-        setDialogOpen(false);
+        setSaving(true);
+        try {
+            if (editingId) {
+                await apiUpdate(editingId, form);
+            } else {
+                await apiCreate(form);
+            }
+            setDialogOpen(false);
+            await load();
+            await refreshActivePromotions();
+        } catch { /* ignore */ }
+        setSaving(false);
     };
+
+    const handleToggle = async (id: string) => {
+        await apiToggle(id);
+        await load();
+        await refreshActivePromotions();
+    };
+
+    const handleDelete = async (id: string, name: string) => {
+        if (!confirm(`Eliminar promocion "${name}"?`)) return;
+        await apiDelete(id);
+        await load();
+        await refreshActivePromotions();
+    };
+
+    const productOptions = useMemo(
+        () => articles.filter((a) => !isNaN(artIdToNumeric(a.id))),
+        [articles],
+    );
+
+    const selectedProducts = useMemo(
+        () => productOptions.filter((a) => form.article_ids.includes(artIdToNumeric(a.id))),
+        [productOptions, form.article_ids],
+    );
 
     const columns = useMemo<GridColDef<Promotion>[]>(
         () => [
@@ -162,7 +236,7 @@ export default function PromotionsPage() {
                             size="small"
                             variant="outlined"
                             startIcon={params.row.active ? <PanTool /> : <CheckCircle />}
-                            onClick={() => togglePromotion(params.row.id)}
+                            onClick={() => handleToggle(params.row.id)}
                         >
                             {params.row.active ? 'Desactivar' : 'Activar'}
                         </Button>
@@ -177,11 +251,7 @@ export default function PromotionsPage() {
                             variant="text"
                             color="error"
                             startIcon={<Delete />}
-                            onClick={() => {
-                                if (confirm(`Eliminar promocion "${params.row.name}"?`)) {
-                                    deletePromotion(params.row.id);
-                                }
-                            }}
+                            onClick={() => handleDelete(params.row.id, params.row.name)}
                         />
                     </Stack>
                 ),
@@ -241,13 +311,32 @@ export default function PromotionsPage() {
                     </Button>
                 </Stack>
 
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }}>
+                    <TextField
+                        size="small"
+                        placeholder="Buscar por nombre, tipo, estado..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        slotProps={{
+                            input: {
+                                startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                            },
+                        }}
+                        sx={{ minWidth: 300 }}
+                    />
+                    <Typography variant="body2" color="text.secondary">
+                        {filteredPromos.length} de {promos.length} promociones
+                    </Typography>
+                </Stack>
+
                 <Card>
                     <CardContent>
                         <Box sx={{ height: 480 }}>
                             <DataGrid
-                                rows={promos}
+                                rows={filteredPromos}
                                 columns={columns}
                                 getRowId={(r) => r.id}
+                                loading={loading}
                                 disableRowSelectionOnClick
                                 pageSizeOptions={[5, 10, 25]}
                                 initialState={{
@@ -259,7 +348,6 @@ export default function PromotionsPage() {
                 </Card>
             </Stack>
 
-            {/* Create / Edit dialog */}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>{editingId ? 'Editar promocion' : 'Nueva promocion'}</DialogTitle>
                 <DialogContent>
@@ -314,9 +402,9 @@ export default function PromotionsPage() {
                         />
                         <Autocomplete
                             multiple
-                            value={products.filter((p) => form.productIds.includes(p.id))}
-                            onChange={(_, v) => setForm({ ...form, productIds: v.map((p) => p.id) })}
-                            options={products}
+                            value={selectedProducts}
+                            onChange={(_, v) => setForm({ ...form, article_ids: v.map((a) => artIdToNumeric(a.id)) })}
+                            options={productOptions}
                             getOptionLabel={(o) => `${o.name} (${o.category})`}
                             renderInput={(params) => (
                                 <TextField {...params} label="Productos (dejar vacio = todos)" size="small" />
@@ -329,8 +417,8 @@ export default function PromotionsPage() {
                     <Button variant="outlined" onClick={() => setDialogOpen(false)}>
                         Cancelar
                     </Button>
-                    <Button variant="contained" onClick={handleSave} disabled={!form.name.trim()}>
-                        {editingId ? 'Guardar cambios' : 'Crear'}
+                    <Button variant="contained" onClick={handleSave} disabled={!form.name.trim() || saving}>
+                        {saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Crear'}
                     </Button>
                 </DialogActions>
             </Dialog>

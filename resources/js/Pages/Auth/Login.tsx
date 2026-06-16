@@ -136,9 +136,7 @@ export default function Login({
                             disabled={processing}
                             sx={{
                                 py: 1.25,
-                                background:
-                                    'linear-gradient(135deg, rgba(233,30,99,1) 0%, rgba(156,39,176,1) 100%)',
-                                boxShadow: '0 18px 40px rgba(233,30,99,0.22)',
+                                bgcolor: 'primary.main',
                                 transition: 'transform 160ms ease, box-shadow 160ms ease',
                                 '&:hover': {
                                     transform: 'translateY(-1px)',

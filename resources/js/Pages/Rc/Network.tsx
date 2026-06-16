@@ -7,11 +7,12 @@ import {
     Card,
     CardContent,
     Chip,
+    InputAdornment,
     Stack,
     TextField,
     Typography,
 } from '@mui/material';
-import { CheckCircle, Cancel, Badge as BadgeIcon } from '@mui/icons-material';
+import { CheckCircle, Cancel, Badge as BadgeIcon, Search } from '@mui/icons-material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useMemo, useState } from 'react';
 
@@ -51,20 +52,40 @@ export default function NetworkPage() {
     });
 
     const [carnetUser, setCarnetUser] = useState<NetworkRow | null>(null);
+    const [search, setSearch] = useState('');
+
+    function scoreNetwork(query: string, r: NetworkRow): number {
+        const q = query.trim().toLowerCase();
+        if (!q) return 1;
+        const name = r.name?.toLowerCase() ?? '';
+        const email = r.email?.toLowerCase() ?? '';
+        const role = r.role?.toLowerCase() ?? '';
+        const leader = r.leader?.toLowerCase() ?? '';
+        const status = r.status?.toLowerCase() ?? '';
+        if (name === q || name.startsWith(q)) return 100;
+        if (name.includes(q)) return 90;
+        if (email.includes(q)) return 80;
+        if (leader.includes(q)) return 70;
+        if (role.includes(q)) return 60;
+        if (status.includes(q)) return 50;
+        return 0;
+    }
 
     const rows: NetworkRow[] = useMemo(() => {
         if (!dbUsers || dbUsers.length === 0) return [];
-        return dbUsers.map((u: any) => ({
-            id: u.id,
-            name: u.name,
-            email: u.email,
-            role: u.role === 'lider' ? 'Lider' as const : 'Salon' as const,
-            leader: u.leader ? u.leader.name : '-',
-            leader_id: u.leader_id,
-            status: u.status === 'active' ? 'Activo' as const : 'Pendiente' as const,
-            created_at: u.created_at,
-        }));
-    }, [dbUsers]);
+        return dbUsers
+            .map((u: any) => ({
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                role: u.role === 'lider' ? 'Lider' as const : 'Salon' as const,
+                leader: u.leader ? u.leader.name : '-',
+                leader_id: u.leader_id,
+                status: u.status === 'active' ? 'Activo' as const : 'Pendiente' as const,
+                created_at: u.created_at,
+            }))
+            .filter((r) => (search ? scoreNetwork(search, r) > 0 : true));
+    }, [dbUsers, search]);
 
     const title = role === 'admin' ? 'Red Comercial' : role === 'lider' ? 'Mi Zona Comercial' : 'Red';
 
@@ -244,6 +265,24 @@ export default function NetworkPage() {
                             + Crear usuario
                         </Button>
                     )}
+                </Stack>
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }}>
+                    <TextField
+                        size="small"
+                        placeholder="Buscar por nombre, email, lider, estado..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        slotProps={{
+                            input: {
+                                startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                            },
+                        }}
+                        sx={{ minWidth: 300 }}
+                    />
+                    <Typography variant="body2" color="text.secondary">
+                        {rows.length} de {dbUsers.length} usuarios
+                    </Typography>
                 </Stack>
 
                 <Card>

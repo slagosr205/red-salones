@@ -1,11 +1,15 @@
 <?php
 
+use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\BenefitController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\RegistrationController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserManagementController;
 use App\Models\User;
 use Illuminate\Foundation\Application;
@@ -19,6 +23,26 @@ Route::get('/', function () {
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);
+});
+
+// Public featured articles API
+Route::get('/api/articulos-destacados', [ArticleController::class, 'featured'])->name('api.articles.featured');
+Route::get('/api/catalogo-articulos', [ArticleController::class, 'catalog'])->name('api.articles.catalog');
+Route::get('/api/promociones-activas', [PromotionController::class, 'activePromotions'])->name('api.promotions.active');
+
+// Public benefits API
+Route::get('/api/beneficios', [BenefitController::class, 'index'])->name('api.benefits.index');
+
+// Authenticated redeem API
+Route::middleware(['auth'])->post('/api/beneficios/canjear', [BenefitController::class, 'redeem'])->name('api.benefits.redeem');
+
+// Admin promotions CRUD API
+Route::middleware(['auth'])->prefix('api/promociones')->name('api.promotions.')->group(function () {
+    Route::get('/', [PromotionController::class, 'index'])->name('index');
+    Route::post('/', [PromotionController::class, 'store'])->name('store');
+    Route::match(['put', 'patch'], '/{promotion}', [PromotionController::class, 'update'])->name('update');
+    Route::delete('/{promotion}', [PromotionController::class, 'destroy'])->name('destroy');
+    Route::post('/{promotion}/toggle', [PromotionController::class, 'toggle'])->name('toggle');
 });
 
 // Public storefront (clients can browse and build a cart without login).
@@ -46,13 +70,26 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 
 Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
     Route::get('/productos', fn () => Inertia::render('Rc/Products'))->name('products');
+    Route::get('/pos', function () {
+        $customers = User::query()
+            ->whereIn('role', [User::ROLE_LIDER, User::ROLE_SALON])
+            ->where('status', User::STATUS_ACTIVE)
+            ->with('leader:id,name,email,role')
+            ->orderBy('role')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'role', 'leader_id']);
+
+        return Inertia::render('Rc/Pos', [
+            'customers' => $customers,
+        ]);
+    })->name('pos');
     Route::get('/carrito', fn () => Inertia::render('Rc/Cart'))->name('cart');
     Route::get('/puntos', fn () => Inertia::render('Rc/Points'))->name('points');
     Route::get('/canjes', fn () => Inertia::render('Rc/Redeem'))->name('redeem');
     Route::get('/master-classes', fn () => Inertia::render('Rc/MasterClasses'))->name('masterclasses');
     Route::get('/inventario', fn () => Inertia::render('Rc/Inventory'))->name('inventory');
     Route::get('/promociones', fn () => Inertia::render('Rc/Promotions'))->name('promotions');
-    Route::get('/reportes', fn () => Inertia::render('Rc/Reports'))->name('reports');
+    Route::get('/reportes', [ReportController::class, 'index'])->name('reports');
     Route::get('/red-comercial', function () {
         $authUser = request()->user();
         $isAdmin = $authUser->role === User::ROLE_ADMIN;
@@ -96,6 +133,14 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
     Route::post('/pendientes/{id}/rechazar', [RegistrationController::class, 'reject'])->name('reject');
 
     Route::get('/configuracion', fn () => Inertia::render('Rc/Settings'))->name('settings');
+
+    Route::get('/articulos', [ArticleController::class, 'index'])->name('articles');
+    Route::get('/articulos/crear', [ArticleController::class, 'create'])->name('articles.create');
+    Route::post('/articulos', [ArticleController::class, 'store'])->name('articles.store');
+    Route::get('/articulos/{id}/editar', [ArticleController::class, 'edit'])->name('articles.edit');
+    Route::match(['patch', 'post'], '/articulos/{id}', [ArticleController::class, 'update'])->name('articles.update');
+    Route::delete('/articulos/{id}', [ArticleController::class, 'destroy'])->name('articles.destroy');
+    Route::post('/articulos/{id}/toggle-featured', [ArticleController::class, 'toggleFeatured'])->name('articles.toggle-featured');
 
     Route::get('/pedidos', [OrderController::class, 'index'])->name('orders');
     Route::get('/pedidos/{id}', [OrderController::class, 'show'])->name('orders.show');

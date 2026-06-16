@@ -8,10 +8,13 @@ import {
     CardContent,
     Chip,
     Grid,
+    InputAdornment,
     Stack,
+    TextField,
     Typography,
 } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { Search } from '@mui/icons-material';
+import { useEffect, useMemo, useState } from 'react';
 
 import { masterClasses } from '@/rc/mock';
 import { getLeaderEmail } from '@/rc/network';
@@ -21,7 +24,24 @@ export default function MasterClassesPage() {
     const user = usePage().props.auth.user;
     const leaderEmail = getLeaderEmail(user);
 
+    const [search, setSearch] = useState('');
     const [points, setPoints] = useState(() => getPointsState(leaderEmail));
+
+    function scoreMasterClass(query: string, mc: typeof masterClasses[0]): number {
+        const q = query.trim().toLowerCase();
+        if (!q) return 1;
+        const title = mc.title?.toLowerCase() ?? '';
+        const instructor = mc.instructor?.toLowerCase() ?? '';
+        if (title === q || title.startsWith(q)) return 100;
+        if (title.includes(q)) return 90;
+        if (instructor.includes(q)) return 70;
+        return 0;
+    }
+
+    const filteredClasses = useMemo(() => {
+        if (!search.trim()) return masterClasses;
+        return masterClasses.filter((mc) => scoreMasterClass(search, mc) > 0);
+    }, [search]);
 
     useEffect(() => {
         const onChange = () => setPoints(getPointsState(leaderEmail));
@@ -42,8 +62,26 @@ export default function MasterClassesPage() {
                 </Typography>
             </Stack>
 
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} sx={{ mb: 2 }}>
+                <TextField
+                    size="small"
+                    placeholder="Buscar por titulo, instructor..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    slotProps={{
+                        input: {
+                            startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                        },
+                    }}
+                    sx={{ minWidth: 300 }}
+                />
+                <Typography variant="body2" color="text.secondary">
+                    {filteredClasses.length} de {masterClasses.length} clases
+                </Typography>
+            </Stack>
+
             <Grid container spacing={2.25}>
-                {masterClasses.map((mc) => {
+                {filteredClasses.map((mc) => {
                     const canEnroll = points.balance >= mc.pointsRequired;
                     return (
                         <Grid key={mc.id} item xs={12} sm={6} md={4} lg={3}>
@@ -52,8 +90,6 @@ export default function MasterClassesPage() {
                                     sx={{
                                         height: 160,
                                         bgcolor: 'grey.100',
-                                        background:
-                                            'linear-gradient(135deg, rgba(156,39,176,0.18), rgba(233,30,99,0.10))',
                                         borderBottom: '1px solid',
                                         borderColor: 'divider',
                                         position: 'relative',
@@ -102,6 +138,12 @@ export default function MasterClassesPage() {
                     );
                 })}
             </Grid>
+
+            {filteredClasses.length === 0 && (
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                    {search ? 'Sin resultados para tu busqueda' : 'No hay capacitaciones disponibles.'}
+                </Typography>
+            )}
         </AuthenticatedLayout>
     );
 }

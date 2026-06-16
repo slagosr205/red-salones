@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, usePage } from '@inertiajs/react';
-import { Box, Card, CardContent, Grid, LinearProgress, Stack, Typography } from '@mui/material';
-import { TrendingDown, TrendingUp, AccountBalanceWallet } from '@mui/icons-material';
+import { Box, Card, CardContent, Grid, InputAdornment, LinearProgress, Stack, TextField, Typography } from '@mui/material';
+import { Search, TrendingDown, TrendingUp, AccountBalanceWallet } from '@mui/icons-material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -31,6 +31,24 @@ export default function PointsPage() {
         () => state.history.filter((e) => e.type === 'Canje').reduce((s, e) => s + Math.abs(e.points), 0),
         [state.history],
     );
+
+    const [search, setSearch] = useState('');
+
+    function scorePointsEvent(query: string, e: PointsEvent): number {
+        const q = query.trim().toLowerCase();
+        if (!q) return 1;
+        const type = e.type?.toLowerCase() ?? '';
+        const desc = e.description?.toLowerCase() ?? '';
+        if (type === q || type.startsWith(q)) return 100;
+        if (type.includes(q)) return 90;
+        if (desc.includes(q)) return 80;
+        return 0;
+    }
+
+    const filteredHistory = useMemo(() => {
+        if (!search.trim()) return state.history;
+        return state.history.filter((e) => scorePointsEvent(search, e) > 0);
+    }, [state.history, search]);
 
     const columns = useMemo<GridColDef<PointsEvent>[]>(
         () => [
@@ -145,12 +163,26 @@ export default function PointsPage() {
 
                 <Card>
                     <CardContent>
-                        <Typography variant="h6" sx={{ fontWeight: 900, mb: 1.5 }}>
-                            Historial
-                        </Typography>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} sx={{ mb: 1.5 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                                Historial
+                            </Typography>
+                            <TextField
+                                size="small"
+                                placeholder="Buscar por tipo, descripcion..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                slotProps={{
+                                    input: {
+                                        startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                                    },
+                                }}
+                                sx={{ minWidth: 240 }}
+                            />
+                        </Stack>
                         <Box sx={{ height: 420, bgcolor: 'background.paper' }}>
                             <DataGrid
-                                rows={state.history}
+                                rows={filteredHistory}
                                 columns={columns}
                                 getRowId={(r) => r.id}
                                 disableRowSelectionOnClick

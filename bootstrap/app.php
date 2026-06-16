@@ -23,8 +23,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'user.status' => CheckUserStatus::class,
         ]);
-
-        //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

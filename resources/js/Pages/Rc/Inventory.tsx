@@ -13,6 +13,7 @@ import {
     DialogTitle,
     FormControl,
     Grid,
+    InputAdornment,
     InputLabel,
     MenuItem,
     Select,
@@ -23,6 +24,7 @@ import {
 import {
     Add,
     Inventory2,
+    Search,
     TrendingDown,
     TrendingUp,
     Warning,
@@ -32,14 +34,11 @@ import { useEffect, useMemo, useState } from 'react';
 
 import {
     addEntry,
-    getCategories,
-    getCriticalItems,
     getInventory,
     getMovements,
-    getOutOfStockItems,
     getRecentMovements,
-    initializeInventory,
     setMinStock,
+    setInventory,
     type InventoryItem,
     type StockMovement,
 } from '@/rc/inventory';
@@ -68,12 +67,35 @@ const chipColor: Record<StockRow['status'], 'success' | 'warning' | 'error'> = {
     Rojo: 'error',
 };
 
+function articleToInventory(a: any): InventoryItem {
+    return {
+        productId: a.id,
+        name: a.name,
+        category: a.category,
+        brand: a.brand,
+        stock: a.stock ?? 0,
+        minStock: 0,
+        price: a.price ?? 0,
+    };
+}
+
 export default function InventoryPage() {
-    const [items, setItems] = useState<InventoryItem[]>(() => {
-        initializeInventory();
-        return getInventory();
-    });
-    const [movements, setMovements] = useState<StockMovement[]>(() => getRecentMovements(20));
+    const [items, setItems] = useState<InventoryItem[]>([]);
+    const [movements, setMovements] = useState<StockMovement[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetch('/api/catalogo-articulos')
+            .then((r) => r.json())
+            .then((data) => {
+                const inv = (data as any[]).map(articleToInventory);
+                setInventory(inv);
+                setItems(inv);
+                setMovements(getRecentMovements(20));
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    }, []);
 
     useEffect(() => {
         const onChange = () => {
@@ -84,14 +106,31 @@ export default function InventoryPage() {
         return () => window.removeEventListener('rc_inventory_changed', onChange);
     }, []);
 
+    const [search, setSearch] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
+
+    function scoreInventory(query: string, i: InventoryItem): number {
+        const q = query.trim().toLowerCase();
+        if (!q) return 1;
+        const name = i.name?.toLowerCase() ?? '';
+        const brand = i.brand?.toLowerCase() ?? '';
+        const category = i.category?.toLowerCase() ?? '';
+        if (name === q || name.startsWith(q)) return 100;
+        if (name.includes(q)) return 90;
+        if (brand.includes(q)) return 70;
+        if (category.includes(q)) return 60;
+        return 0;
+    }
     const [entryOpen, setEntryOpen] = useState(false);
     const [minOpen, setMinOpen] = useState<string | null>(null);
     const [minValue, setMinValue] = useState(10);
 
-    const categories = useMemo(() => getCategories(), [items]);
-    const critical = useMemo(() => getCriticalItems(), [items]);
-    const outOfStock = useMemo(() => getOutOfStockItems(), [items]);
+    const categories = useMemo(
+        () => Array.from(new Set(items.map((i) => i.category))).sort(),
+        [items],
+    );
+    const critical = useMemo(() => items.filter((i) => i.stock > 0 && i.stock <= i.minStock), [items]);
+    const outOfStock = useMemo(() => items.filter((i) => i.stock === 0), [items]);
     const totalValue = useMemo(
         () => items.reduce((acc, i) => acc + i.stock * i.price, 0),
         [items],
@@ -100,6 +139,7 @@ export default function InventoryPage() {
     const rows: StockRow[] = useMemo(() => {
         return items
             .filter((i) => (categoryFilter ? i.category === categoryFilter : true))
+            .filter((i) => (search ? scoreInventory(search, i) > 0 : true))
             .map((i) => ({
                 id: i.productId,
                 productId: i.productId,
@@ -111,7 +151,7 @@ export default function InventoryPage() {
                 price: i.price,
                 status: computeStatus(i.stock, i.minStock),
             }));
-    }, [items, categoryFilter]);
+    }, [items, categoryFilter, search]);
 
     const columns = useMemo<GridColDef<StockRow>[]>(
         () => [
@@ -289,28 +329,40 @@ export default function InventoryPage() {
                 {/* Stock table */}
                 <Card>
                     <CardContent>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                            <Typography variant="h6" sx={{ fontWeight: 900 }}>
-                                Stock por producto
-                            </Typography>
-                            <Stack direction="row" spacing={1.5} alignItems="center">
-                                <FormControl size="small" sx={{ minWidth: 160 }}>
-                                    <InputLabel>Categoria</InputLabel>
-                                    <Select
-                                        value={categoryFilter}
-                                        label="Categoria"
-                                        onChange={(e) => setCategoryFilter(e.target.value)}
-                                    >
-                                        <MenuItem value="">Todas</MenuItem>
-                                        {categories.map((c) => (
-                                            <MenuItem key={c} value={c}>
-                                                {c}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
+                            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} sx={{ mb: 2 }} spacing={1.5}>
+                                <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                                    Stock por producto
+                                </Typography>
+                                <Stack direction="row" spacing={1.5} alignItems="center">
+                                    <TextField
+                                        size="small"
+                                        placeholder="Buscar producto, marca..."
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                        slotProps={{
+                                            input: {
+                                                startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                                            },
+                                        }}
+                                        sx={{ minWidth: 220 }}
+                                    />
+                                    <FormControl size="small" sx={{ minWidth: 160 }}>
+                                        <InputLabel>Categoria</InputLabel>
+                                        <Select
+                                            value={categoryFilter}
+                                            label="Categoria"
+                                            onChange={(e) => setCategoryFilter(e.target.value)}
+                                        >
+                                            <MenuItem value="">Todas</MenuItem>
+                                            {categories.map((c) => (
+                                                <MenuItem key={c} value={c}>
+                                                    {c}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                </Stack>
                             </Stack>
-                        </Stack>
                         <Box sx={{ height: 480 }}>
                             <DataGrid
                                 rows={rows}

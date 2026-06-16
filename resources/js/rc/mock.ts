@@ -5,7 +5,6 @@ export type Product = {
     category: string;
     price: number;
     points: number;
-    promo?: '2x1' | 'descuento' | 'combo';
 };
 
 export const products: Product[] = [
@@ -16,7 +15,6 @@ export const products: Product[] = [
         category: 'Cabello',
         price: 320,
         points: 25,
-        promo: 'descuento',
     },
     {
         id: 'p-002',
@@ -33,7 +31,6 @@ export const products: Product[] = [
         category: 'Cabello',
         price: 450,
         points: 35,
-        promo: 'combo',
     },
     {
         id: 'p-004',
@@ -50,7 +47,6 @@ export const products: Product[] = [
         category: 'Color',
         price: 160,
         points: 10,
-        promo: '2x1',
     },
     {
         id: 'p-006',
@@ -75,7 +71,6 @@ export const products: Product[] = [
         category: 'Higiene',
         price: 210,
         points: 14,
-        promo: 'descuento',
     },
 ];
 

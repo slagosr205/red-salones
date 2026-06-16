@@ -6,11 +6,15 @@ import {
     Card,
     CardContent,
     Chip,
+    InputAdornment,
     MenuItem,
     Select,
     Stack,
+    TextField,
     Typography,
 } from '@mui/material';
+import { Search } from '@mui/icons-material';
+import { useMemo, useState } from 'react';
 import type { RcRole } from '@/rc/role';
 
 type OrderItem = {
@@ -64,10 +68,38 @@ type Props = {
     orders: Order[];
 };
 
+function scoreOrder(query: string, o: Order): number {
+    const q = query.trim().toLowerCase();
+    if (!q) return 1;
+    const orderNum = o.order_number?.toLowerCase() ?? '';
+    const customer = o.customer_name?.toLowerCase() ?? '';
+    const salonName = o.salon?.name?.toLowerCase() ?? '';
+    const status = o.status?.toLowerCase() ?? '';
+    const paymentMethod = o.payment_method?.toLowerCase() ?? '';
+    if (orderNum === q || orderNum.startsWith(q)) return 100;
+    if (orderNum.includes(q)) return 90;
+    if (customer.startsWith(q) || customer.includes(q)) return 80;
+    if (salonName.includes(q)) return 70;
+    if (status.includes(q) || STATUS_LABELS[o.status]?.toLowerCase().includes(q)) return 60;
+    if (paymentMethod.includes(q)) return 50;
+    return 0;
+}
+
 export default function Orders({ orders }: Props) {
     const user = usePage().props.auth.user;
     const userRole: RcRole = user.role ?? 'salon';
     const isAdmin = userRole === 'admin';
+
+    const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('');
+
+    const filtered = useMemo(() => {
+        return orders.filter((o) => {
+            if (statusFilter && o.status !== statusFilter) return false;
+            if (search) return scoreOrder(search, o) > 0;
+            return true;
+        });
+    }, [orders, search, statusFilter]);
 
     const handleStatusChange = (orderId: number, newStatus: string) => {
         if (!confirm('¿Cambiar el estado de este pedido?')) return;
@@ -79,16 +111,46 @@ export default function Orders({ orders }: Props) {
             <Head title="Pedidos" />
 
             <Stack spacing={2}>
-                {orders.length === 0 ? (
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }}>
+                    <TextField
+                        size="small"
+                        placeholder="Buscar por orden, cliente, estado..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        slotProps={{
+                            input: {
+                                startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                            },
+                        }}
+                        sx={{ minWidth: 300 }}
+                    />
+                    <Select
+                        size="small"
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        displayEmpty
+                        sx={{ minWidth: 160 }}
+                    >
+                        <MenuItem value="">Todos los estados</MenuItem>
+                        {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                            <MenuItem key={k} value={k}>{v}</MenuItem>
+                        ))}
+                    </Select>
+                    <Typography variant="body2" color="text.secondary">
+                        {filtered.length} de {orders.length} pedidos
+                    </Typography>
+                </Stack>
+
+                {filtered.length === 0 ? (
                     <Card>
                         <CardContent>
                             <Typography variant="body1" sx={{ fontWeight: 700, textAlign: 'center', py: 4 }}>
-                                No hay pedidos aún.
+                                {search || statusFilter ? 'Sin resultados para tu busqueda' : 'No hay pedidos aún.'}
                             </Typography>
                         </CardContent>
                     </Card>
                 ) : (
-                    orders.map((order) => (
+                    filtered.map((order) => (
                         <Card key={order.id}>
                             <CardContent>
                                 <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1}>

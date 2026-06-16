@@ -14,6 +14,7 @@ import { Print, Email } from '@mui/icons-material';
 import { useMemo, useState } from 'react';
 
 import type { Product } from '@/rc/mock';
+import { getPromotionsForProduct } from '@/rc/promotions';
 import { getReceiptConfig } from '@/rc/receipt';
 
 type LineItem = {
@@ -32,11 +33,11 @@ type Props = {
 };
 
 function promoLabel(p: Product): string | null {
-    if (!p.promo) return null;
-    if (p.promo === '2x1') return '2x1';
-    if (p.promo === 'descuento') return '15%OFF';
-    if (p.promo === 'combo') return '10%OFF';
-    return null;
+    const promos = getPromotionsForProduct(p.id);
+    if (promos.length === 0) return null;
+    const promo = promos[0];
+    if (promo.type === '2x1') return '2x1';
+    return `${promo.value}%OFF`;
 }
 
 export default function ReceiptDialog({ open, onClose, items, customerName, date }: Props) {

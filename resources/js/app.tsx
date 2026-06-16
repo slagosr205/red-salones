@@ -13,9 +13,10 @@ import '@fontsource/playfair-display/latin.css';
 
 const theme = createTheme({
     palette: {
-        primary: { main: '#E91E63' },
-        secondary: { main: '#9C27B0' },
-        background: { default: '#F5F5F5', paper: '#FFFFFF' },
+        primary: { main: '#BFA16B', contrastText: '#FFFFFF' },
+        secondary: { main: '#0F4F63', contrastText: '#FFFFFF' },
+        background: { default: '#E8DDD0', paper: '#F5F0E8' },
+        text: { primary: '#082F3A' },
     },
     typography: {
         fontFamily: [

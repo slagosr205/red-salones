@@ -19,7 +19,7 @@ import { Delete, ShoppingCart } from '@mui/icons-material';
 import { useEffect, useMemo, useState } from 'react';
 
 import { clearCart, getCart, removeFromCart, updateQty } from '@/rc/cart';
-import { products } from '@/rc/mock';
+import { products as mockProducts } from '@/rc/mock';
 import { getLeaderEmail } from '@/rc/network';
 import { addPointsEvent } from '@/rc/points';
 
@@ -29,6 +29,15 @@ export default function PublicCart() {
 
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [cart, setCartState] = useState(() => getCart());
+    const [articles, setArticles] = useState<any[]>([]);
+    const [imageModal, setImageModal] = useState('');
+
+    useEffect(() => {
+        fetch('/api/catalogo-articulos')
+            .then((r) => r.json())
+            .then(setArticles)
+            .catch(() => {});
+    }, []);
 
     useEffect(() => {
         const onChange = () => setCartState(getCart());
@@ -36,10 +45,12 @@ export default function PublicCart() {
         return () => window.removeEventListener('rc_cart_changed', onChange);
     }, []);
 
+    const allProducts = useMemo(() => [...articles, ...mockProducts], [articles]);
+
     const rows = useMemo(() => {
         return cart
             .map((ci) => {
-                const p = products.find((x) => x.id === ci.productId);
+                const p = allProducts.find((x: any) => x.id === ci.productId);
                 if (!p) return null;
                 return {
                     ...ci,
@@ -51,11 +62,11 @@ export default function PublicCart() {
             .filter(Boolean) as Array<{
             productId: string;
             qty: number;
-            product: (typeof products)[number];
+            product: any;
             total: number;
             points: number;
         }>;
-    }, [cart]);
+    }, [cart, allProducts]);
 
     const subtotal = rows.reduce((acc, r) => acc + r.total, 0);
     const pointsEarned = rows.reduce((acc, r) => acc + r.points, 0);
@@ -113,15 +124,18 @@ export default function PublicCart() {
                                         <CardContent>
                                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
                                                 <Box
+                                                    onClick={() => r.product.image && setImageModal(r.product.image)}
                                                     sx={{
                                                         width: 88,
-                                                        height: 56,
+                                                        aspectRatio: '4/3',
                                                         borderRadius: 2,
                                                         bgcolor: 'grey.100',
-                                                        background:
-                                                            'linear-gradient(135deg, rgba(233,30,99,0.15), rgba(156,39,176,0.08))',
+                                                    background: r.product.image
+                                                        ? `url(${r.product.image}) center/cover no-repeat`
+                                                        : undefined,
                                                         border: '1px solid',
                                                         borderColor: 'divider',
+                                                        cursor: r.product.image ? 'pointer' : undefined,
                                                     }}
                                                 />
                                                 <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -245,6 +259,16 @@ export default function PublicCart() {
                     </Dialog>
                 </Container>
             </Box>
+
+            <Dialog open={!!imageModal} onClose={() => setImageModal('')}>
+                {imageModal && (
+                    <Box
+                        component="img"
+                        src={imageModal}
+                        sx={{ width: 450, height: 450, objectFit: 'cover', display: 'block' }}
+                    />
+                )}
+            </Dialog>
         </>
     );
 }

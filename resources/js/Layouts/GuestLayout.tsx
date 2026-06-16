@@ -5,22 +5,14 @@ import { Box, Card, Container, Stack, Typography } from '@mui/material';
 function BrandMark() {
     return (
         <Box
+            component="img"
+            src="/storage/logo.png"
+            alt="Logo"
             sx={{
-                width: 44,
-                height: 44,
-                borderRadius: 3,
-                display: 'grid',
-                placeItems: 'center',
-                color: 'primary.contrastText',
-                background:
-                    'linear-gradient(135deg, rgba(233,30,99,1) 0%, rgba(156,39,176,1) 100%)',
-                boxShadow: '0 14px 30px rgba(233,30,99,0.25)',
-                fontWeight: 950,
-                letterSpacing: -0.5,
+                height: 120,
+                width: 'auto',
             }}
-        >
-            RC
-        </Box>
+        />
     );
 }
 
@@ -34,16 +26,6 @@ export default function Guest({ children }: PropsWithChildren) {
                 overflow: 'hidden',
             }}
         >
-            <Box
-                sx={{
-                    position: 'absolute',
-                    inset: -120,
-                    background:
-                        'radial-gradient(circle at 20% 10%, rgba(233,30,99,0.22), transparent 55%), radial-gradient(circle at 85% 20%, rgba(156,39,176,0.18), transparent 60%), radial-gradient(circle at 60% 85%, rgba(233,30,99,0.12), transparent 55%)',
-                    filter: 'blur(2px)',
-                }}
-            />
-
             <Container
                 maxWidth="md"
                 sx={{
@@ -72,21 +54,11 @@ export default function Guest({ children }: PropsWithChildren) {
                                 flexBasis: { md: 360 },
                                 p: { xs: 3, sm: 4 },
                                 color: 'common.white',
-                                background:
-                                    'linear-gradient(135deg, rgba(233,30,99,1) 0%, rgba(156,39,176,1) 100%)',
+                                bgcolor: 'primary.main',
                                 position: 'relative',
                             }}
                         >
-                            <Box
-                                sx={{
-                                    position: 'absolute',
-                                    inset: 0,
-                                    opacity: 0.35,
-                                    background:
-                                        'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.35), transparent 55%), radial-gradient(circle at 80% 70%, rgba(255,255,255,0.20), transparent 55%)',
-                                }}
-                            />
-                            <Stack sx={{ position: 'relative' }} spacing={2}>
+                            <Stack spacing={2}>
                                 <Link href="/" style={{ textDecoration: 'none', color: 'inherit' }}>
                                     <Stack direction="row" spacing={1.5} alignItems="center">
                                         <BrandMark />

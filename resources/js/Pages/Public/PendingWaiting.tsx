@@ -15,7 +15,7 @@ export default function PendingWaiting() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    bgcolor: 'background.default',
                 }}
             >
                 <Container maxWidth="xs">
