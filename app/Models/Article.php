@@ -30,7 +30,9 @@ class Article extends Model
         'category',
         'price',
         'leader_price',
+        'public_price',
         'stock',
+        'min_stock',
         'points',
         'summary',
         'image_path',
@@ -43,7 +45,9 @@ class Article extends Model
         return [
             'price' => 'decimal:2',
             'leader_price' => 'decimal:2',
+            'public_price' => 'decimal:2',
             'stock' => 'integer',
+            'min_stock' => 'integer',
             'points' => 'integer',
             'is_featured' => 'boolean',
         ];

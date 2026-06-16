@@ -35,7 +35,7 @@ class Promotion extends Model
     {
         return $query
             ->where('active', true)
-            ->where('start_date', '<=', now()->format('Y-m-d'))
-            ->where('end_date', '>=', now()->format('Y-m-d'));
+            ->whereDate('start_date', '<=', now()->format('Y-m-d'))
+            ->whereDate('end_date', '>=', now()->format('Y-m-d'));
     }
 }

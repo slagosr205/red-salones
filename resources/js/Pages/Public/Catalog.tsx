@@ -1,5 +1,6 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import {
+    Autocomplete,
     Box,
     Button,
     Card,
@@ -22,11 +23,25 @@ import {
     Typography,
 } from '@mui/material';
 import { FilterList, Search, ShoppingCart } from '@mui/icons-material';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { addToCart } from '@/rc/cart';
 import { products as mockProducts } from '@/rc/mock';
 import { refreshActivePromotions, getActivePromotions } from '@/rc/promotions';
+
+function scoreProduct(query: string, p: any): number {
+    const q = query.trim().toLowerCase();
+    if (!q) return 1;
+    const name = p.name?.toLowerCase() ?? '';
+    const brand = p.brand?.toLowerCase() ?? '';
+    const category = p.category?.toLowerCase() ?? '';
+    if (name === q) return 100;
+    if (name.startsWith(q)) return 90;
+    if (name.includes(q)) return 80;
+    if (brand.includes(q)) return 50;
+    if (category.includes(q)) return 40;
+    return 0;
+}
 
 export default function PublicCatalog() {
     const auth = (usePage().props as any).auth;
@@ -35,6 +50,9 @@ export default function PublicCatalog() {
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [articles, setArticles] = useState<any[]>([]);
     const [promoProductIds, setPromoProductIds] = useState<Set<string>>(new Set());
+    const [searchValue, setSearchValue] = useState('');
+    const [query, setQuery] = useState('');
+    const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
     useEffect(() => {
         Promise.all([
@@ -50,11 +68,27 @@ export default function PublicCatalog() {
 
     const products = useMemo(() => [...articles, ...mockProducts], [articles]);
 
-    const [query, setQuery] = useState('');
     const [category, setCategory] = useState<string>('');
     const [brand, setBrand] = useState<string>('');
     const [onlyPromos, setOnlyPromos] = useState(false);
     const [price, setPrice] = useState<number[]>([0, 700]);
+
+    const handleSearchInput = useCallback((_: any, value: string) => {
+        setSearchValue(value);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => setQuery(value), 250);
+    }, []);
+
+    const suggestions = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q || q.length < 2) return [];
+        return products
+            .map((p) => ({ p, score: scoreProduct(q, p) }))
+            .filter((x) => x.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 8)
+            .map((x) => x.p);
+    }, [query, products]);
 
     const categories = useMemo(
         () => Array.from(new Set(products.map((p) => p.category))).sort(),
@@ -68,7 +102,7 @@ export default function PublicCatalog() {
     const list = useMemo(() => {
         const q = query.trim().toLowerCase();
         return products
-            .filter((p) => (q ? p.name.toLowerCase().includes(q) : true))
+            .filter((p) => (q ? scoreProduct(q, p) > 0 : true))
             .filter((p) => (category ? p.category === category : true))
             .filter((p) => (brand ? p.brand === brand : true))
             .filter((p) => (onlyPromos ? promoProductIds.has(p.id) : true))
@@ -85,20 +119,6 @@ export default function PublicCatalog() {
             </Typography>
 
             <Stack spacing={2} sx={{ mt: 2 }}>
-                <TextField
-                    label="Buscar"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <Search fontSize="small" />
-                            </InputAdornment>
-                        ),
-                    }}
-                    size="small"
-                />
-
                 <FormControl size="small">
                     <Typography variant="caption" color="text.secondary">
                         Categoria
@@ -162,6 +182,7 @@ export default function PublicCatalog() {
                 <Button
                     variant="outlined"
                     onClick={() => {
+                        setSearchValue('');
                         setQuery('');
                         setCategory('');
                         setBrand('');
@@ -191,7 +212,7 @@ export default function PublicCatalog() {
                         <Box>
                             <Typography variant="h4">Catalogo</Typography>
                             <Typography variant="body2" color="text.secondary">
-                                Puedes seleccionar productos sin iniciar sesion.
+                                Busqueda inteligente — encuentra por nombre, marca o categoria.
                             </Typography>
                         </Box>
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -221,6 +242,58 @@ export default function PublicCatalog() {
                             )}
                         </Stack>
                     </Stack>
+
+                    <Autocomplete
+                        freeSolo
+                        value={searchValue}
+                        onInputChange={handleSearchInput}
+                        options={suggestions}
+                        getOptionLabel={(o: any) => (typeof o === 'string' ? o : o.name)}
+                        renderOption={(props, o: any) => {
+                            const { key, ...rest } = props;
+                            return (
+                                <Box component="li" key={key} {...rest} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1 }}>
+                                    <Box
+                                        sx={{
+                                            width: 40, height: 40, borderRadius: 1,
+                                            bgcolor: 'grey.100',
+                                            background: o.image ? `url(${o.image}) center/cover no-repeat` : undefined,
+                                            flexShrink: 0,
+                                        }}
+                                    />
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{o.name}</Typography>
+                                        <Typography variant="caption" color="text.secondary" noWrap>{o.brand} &middot; {o.category}</Typography>
+                                    </Box>
+                                    <Typography variant="body2" sx={{ fontWeight: 700, flexShrink: 0 }}>L {o.price.toFixed(2)}</Typography>
+                                </Box>
+                            );
+                        }}
+                        renderInput={(params) => (
+                            <TextField
+                                {...params}
+                                placeholder="Buscar por nombre, marca o categoria..."
+                                slotProps={{
+                                    input: {
+                                        ...params.InputProps,
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <Search />
+                                            </InputAdornment>
+                                        ),
+                                    },
+                                }}
+                                sx={{ mb: 2 }}
+                            />
+                        )}
+                        onChange={(_, v) => {
+                            if (v && typeof v === 'object') {
+                                setSearchValue((v as any).name);
+                                setQuery((v as any).name);
+                            }
+                        }}
+                        clearOnBlur={false}
+                    />
 
                     <Drawer anchor="right" open={filtersOpen} onClose={() => setFiltersOpen(false)}>
                         {filters}

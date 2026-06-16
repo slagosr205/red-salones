@@ -3,6 +3,7 @@ export interface User {
     name: string;
     email: string;
     role: 'admin' | 'lider' | 'salon';
+    client_type?: 'salon' | 'consumidor_final' | null;
     leader_id?: number | null;
     leader?: { id: number; name: string; email: string } | null;
     email_verified_at?: string;

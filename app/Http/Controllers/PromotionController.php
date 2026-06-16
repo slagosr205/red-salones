@@ -106,4 +106,30 @@ class PromotionController extends Controller
 
         return response()->json($mapped);
     }
+
+    public function activeWithProducts(): JsonResponse
+    {
+        $promotions = Promotion::active()
+            ->with('articles:id,name,price,image_path,brand')
+            ->get();
+
+        $mapped = $promotions->map(fn ($p) => [
+            'id' => (string) $p->id,
+            'name' => $p->name,
+            'type' => $p->type,
+            'value' => (float) $p->value,
+            'startDate' => $p->start_date->format('Y-m-d'),
+            'endDate' => $p->end_date->format('Y-m-d'),
+            'active' => $p->active,
+            'products' => $p->articles->map(fn ($a) => [
+                'id' => 'art-'.$a->id,
+                'name' => $a->name,
+                'brand' => $a->brand,
+                'price' => (float) ($a->price ?? 0),
+                'image' => $a->image_path ? '/storage/'.$a->image_path : null,
+            ]),
+        ]);
+
+        return response()->json($mapped);
+    }
 }

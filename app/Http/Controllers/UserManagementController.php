@@ -106,6 +106,7 @@ class UserManagementController extends Controller
         if ($isAdmin) {
             $rules['role'] = ['required', 'string', 'in:'.User::ROLE_LIDER.','.User::ROLE_SALON];
             $rules['leader_id'] = ['nullable', 'exists:users,id'];
+            $rules['client_type'] = ['nullable', 'string', 'in:'.implode(',', User::CLIENT_TYPES)];
         } else {
             $rules['role'] = ['prohibited'];
             $rules['leader_id'] = ['prohibited'];
@@ -121,6 +122,10 @@ class UserManagementController extends Controller
         if (! $isAdmin) {
             $validated['role'] = User::ROLE_SALON;
             $validated['leader_id'] = $user->id;
+        }
+
+        if ($isAdmin && ! $isCreatingLider && empty($validated['client_type'])) {
+            $validated['client_type'] = User::CLIENT_TYPE_SALON;
         }
 
         $newUser = User::query()->create($validated);

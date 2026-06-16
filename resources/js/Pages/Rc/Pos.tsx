@@ -23,7 +23,6 @@ import { Add, Delete, LocalOffer, Remove, Search } from '@mui/icons-material';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { refreshActivePromotions, getDiscountForProduct, getPromotionsForProduct, type Promotion } from '@/rc/promotions';
-import { deductStock } from '@/rc/inventory';
 import { addNotification } from '@/rc/notifications';
 import { addPointsEvent } from '@/rc/points';
 import { getLeaderEmail } from '@/rc/network';
@@ -33,6 +32,7 @@ type Customer = {
     name: string;
     email: string;
     role: 'lider' | 'salon';
+    client_type: 'salon' | 'consumidor_final' | null;
     leader_id: number | null;
     leader: { id: number; name: string; email: string; role: string } | null;
 };
@@ -82,7 +82,7 @@ export default function PosPage() {
     const { auth, customers } = usePage().props as any;
     const userId = auth?.user?.id;
 
-    const defaultCustomer: Customer = { id: 0, name: 'Mostrador', email: '', role: 'salon', leader_id: null, leader: null };
+    const defaultCustomer: Customer = { id: 0, name: 'Mostrador', email: '', role: 'salon', client_type: null, leader_id: null, leader: null };
 
     const [products, setProducts] = useState<any[]>([]);
     const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -164,13 +164,21 @@ export default function PosPage() {
         setCart((prev) => prev.filter((i) => i.product.id !== productId));
     };
 
-    const customerRole = customer?.role ?? 'salon';
+    const priceTier = useMemo(() => {
+        if (customer?.role === 'lider') return 'lider';
+        if (customer?.client_type === 'consumidor_final') return 'consumidor_final';
+        return 'salon';
+    }, [customer]);
+
+    const getUnitPrice = useCallback((product: any) => {
+        if (priceTier === 'lider') return product.leader_price ?? product.price ?? 0;
+        if (priceTier === 'consumidor_final') return product.public_price ?? product.price ?? 0;
+        return product.price ?? 0;
+    }, [priceTier]);
 
     const rows = useMemo(() => {
         return cart.map((ci) => {
-            const unitPrice = customerRole === 'lider'
-                ? (ci.product.leader_price ?? ci.product.price ?? 0)
-                : (ci.product.price ?? 0);
+            const unitPrice = getUnitPrice(ci.product);
             const discount = getDiscountForProduct(ci.product.id, ci.product.price, ci.qty);
             const promos = getPromotionsForProduct(ci.product.id);
             return {
@@ -182,7 +190,7 @@ export default function PosPage() {
                 promos,
             };
         });
-    }, [cart, customerRole]);
+    }, [cart, getUnitPrice]);
 
     const subtotal = rows.reduce((acc, r) => acc + r.total, 0);
     const totalDiscount = rows.reduce((acc, r) => acc + r.discount, 0);
@@ -230,11 +238,9 @@ export default function PosPage() {
             await axios.post(route('rc.orders.store'), payload);
         } catch {
             addNotification(userId, 'Error al crear el pedido POS.');
+            setPurchasing(false);
+            return;
         }
-
-        rows.forEach((r) => {
-            deductStock(r.product.id, r.qty, `Venta POS: ${desc}`);
-        });
 
         setReceiptItems(
             rows.map((r) => ({
@@ -294,7 +300,7 @@ export default function PosPage() {
                                     </Box>
                                     <Stack alignItems="flex-end" spacing={0.25}>
                                         <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                            L {(customerRole === 'lider' ? (o.leader_price ?? o.price ?? 0) : (o.price ?? 0)).toFixed(2)}
+                                            L {getUnitPrice(o).toFixed(2)}
                                         </Typography>
                                         {promos?.map((pr) => (
                                             <Chip key={pr.id} size="small" icon={<LocalOffer />} label={promoLabel(pr)} sx={{ height: 18, fontSize: 9, bgcolor: promoColor(pr), color: '#fff', '& .MuiChip-icon': { fontSize: 11 } }} />
@@ -350,7 +356,7 @@ export default function PosPage() {
                                                 <Typography variant="body2" sx={{ fontWeight: 900 }} noWrap>{p.name}</Typography>
                                                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                                                     <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                                                        L {(customerRole === 'lider' ? (p.leader_price ?? p.price ?? 0) : (p.price ?? 0)).toFixed(2)}
+                                                        L {getUnitPrice(p).toFixed(2)}
                                                     </Typography>
                                                     <Chip size="small" label={p.brand} variant="outlined" />
                                                 </Stack>
@@ -379,15 +385,20 @@ export default function PosPage() {
                         options={customerOptions}
                         value={customer?.id ? customer : null}
                         onChange={(_, v) => setCustomer(v ?? defaultCustomer)}
-                        getOptionLabel={(o: Customer) => `${o.name} (${o.role === 'lider' ? 'Líder' : 'Salón'})`}
-                        groupBy={(o: Customer) => o.role === 'lider' ? 'Líderes' : 'Salones'}
+                        getOptionLabel={(o: Customer) => {
+                            if (o.role === 'lider') return `${o.name} (Líder)`;
+                            const tipo = o.client_type === 'consumidor_final' ? 'Consumidor Final' : 'Salón';
+                            return `${o.name} (${tipo})`;
+                        }}
+                        groupBy={(o: Customer) => o.role === 'lider' ? 'Líderes' : (o.client_type === 'consumidor_final' ? 'Consumidores Finales' : 'Salones')}
                         isOptionEqualToValue={(o, v) => o.id === v.id}
                         renderOption={(props, o: Customer) => {
                             const { key, ...rest } = props;
+                            const label = o.role === 'lider' ? 'Líder' : (o.client_type === 'consumidor_final' ? 'Consumidor Final' : 'Salón');
                             return (
                                 <Box component="li" key={key} {...rest} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 0.75 }}>
                                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{o.name}</Typography>
-                                    <Chip size="small" label={o.role === 'lider' ? 'Líder' : 'Salón'} variant="outlined" />
+                                    <Chip size="small" label={label} variant="outlined" />
                                 </Box>
                             );
                         }}
@@ -396,6 +407,16 @@ export default function PosPage() {
                         )}
                         sx={{ mb: 1.5 }}
                     />
+
+                    <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
+                        <Chip
+                            size="small"
+                            label={priceTier === 'lider' ? 'Precio: Líder' : priceTier === 'consumidor_final' ? 'Precio: Consumidor Final' : 'Precio: Salón'}
+                            color={priceTier === 'lider' ? 'info' : priceTier === 'consumidor_final' ? 'success' : 'primary'}
+                            variant="outlined"
+                            sx={{ fontWeight: 700 }}
+                        />
+                    </Stack>
 
                     <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
                         <ToggleButtonGroup

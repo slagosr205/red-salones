@@ -31,9 +31,12 @@ import { addToCart } from '@/rc/cart';
 import { refreshActivePromotions, getActivePromotions } from '@/rc/promotions';
 import { usePage } from '@inertiajs/react';
 
-function effectivePrice(p: any, role: string): number {
+function effectivePrice(p: any, role: string, clientType?: string | null): number {
     if (role === 'lider' || role === 'admin') {
         return p.leader_price ?? p.price ?? 0;
+    }
+    if (clientType === 'consumidor_final') {
+        return p.public_price ?? p.price ?? 0;
     }
     return p.price ?? 0;
 }
@@ -55,6 +58,7 @@ function scoreProduct(query: string, p: any): number {
 export default function ProductsPage() {
     const { auth } = usePage().props as any;
     const userRole: string = auth?.user?.role ?? 'salon';
+    const userClientType = auth?.user?.client_type;
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarProduct, setSnackbarProduct] = useState('');
@@ -114,7 +118,7 @@ export default function ProductsPage() {
             .filter((p) => (category ? p.category === category : true))
             .filter((p) => (brand ? p.brand === brand : true))
             .filter((p) => (onlyPromos ? promoProductIds.has(p.id) : true))
-            .filter((p) => effectivePrice(p, userRole) >= price[0] && effectivePrice(p, userRole) <= price[1]);
+            .filter((p) => effectivePrice(p, userRole, userClientType) >= price[0] && effectivePrice(p, userRole, userClientType) <= price[1]);
     }, [query, category, brand, onlyPromos, price, products]);
 
     const filters = (
@@ -249,7 +253,7 @@ export default function ProductsPage() {
                                 <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{o.name}</Typography>
                                 <Typography variant="caption" color="text.secondary" noWrap>{o.brand} &middot; {o.category}</Typography>
                             </Box>
-                            <Typography variant="body2" sx={{ fontWeight: 700, flexShrink: 0 }}>L {effectivePrice(o, userRole).toFixed(2)}</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, flexShrink: 0 }}>L {effectivePrice(o, userRole, userClientType).toFixed(2)}</Typography>
                         </Box>
                     );
                 }}
@@ -308,7 +312,7 @@ export default function ProductsPage() {
                                 </Typography>
                                 <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mt: 1 }}>
                                     <Typography variant="h6" sx={{ fontWeight: 900 }}>
-                                        L {effectivePrice(p, userRole).toFixed(2)}
+                                        L {effectivePrice(p, userRole, userClientType).toFixed(2)}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
                                         {p.points} puntos

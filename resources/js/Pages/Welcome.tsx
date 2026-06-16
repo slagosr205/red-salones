@@ -40,7 +40,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 
-import { refreshActivePromotions, getPromotionsForProduct, type Promotion } from '@/rc/promotions';
+import { fetchActivePromotionsWithProducts, getPromotionsForProduct, type PromotionWithProducts } from '@/rc/promotions';
 
 function useInView<T extends HTMLElement>(options?: IntersectionObserverInit) {
     const ref = useRef<T | null>(null);
@@ -136,14 +136,14 @@ interface FeaturedArticle {
     image_path: string | null;
 }
 
-function promoLabel(promo: Promotion): string {
+function promoLabel(promo: { type: string; value: number }): string {
     if (promo.type === '2x1') return '2x1';
     if (promo.type === 'descuento') return `${promo.value}% OFF`;
     if (promo.type === 'combo') return `Combo ${promo.value}%`;
     return '';
 }
 
-function promoColor(promo: Promotion): string {
+function promoColor(promo: { type: string }): string {
     if (promo.type === '2x1') return '#e91e63';
     if (promo.type === 'descuento') return '#ff9800';
     return '#9c27b0';
@@ -155,31 +155,81 @@ export default function Welcome({
     phpVersion,
 }: PageProps<{ laravelVersion: string; phpVersion: string }>) {
     const [featuredArticles, setFeaturedArticles] = useState<FeaturedArticle[]>([]);
-    const [promotions, setPromotions] = useState<Promotion[]>([]);
+    const [promotions, setPromotions] = useState<PromotionWithProducts[]>([]);
     const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
 
     useEffect(() => {
         Promise.all([
             axios.get('/api/articulos-destacados').then((res) => setFeaturedArticles(res.data)),
-            refreshActivePromotions().then(setPromotions),
+            fetchActivePromotionsWithProducts().then(setPromotions),
         ]).catch(() => {});
     }, []);
 
+    const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://redprobeauty.hn';
+
     return (
         <>
-            <Head title="Red Pro Beauty" />
+            <Head title="Red Pro Beauty">
+                <meta name="description" content="Red Pro Beauty — La red comercial de salones de belleza más grande de Honduras. Únete a nuestra red de afiliación, accede a productos profesionales, capacitación y oportunidades de crecimiento para estilistas, barberos y emprendedores del sector belleza." />
+                <meta name="keywords" content="salones de belleza, red comercial, afiliación, Honduras, Centroamérica, productos profesionales, estilistas, barberos, Red Pro Beauty, red de salones, belleza Honduras" />
+                <meta property="og:title" content="Red Pro Beauty — El Poder de tu Salón" />
+                <meta property="og:description" content="Únete a la red de afiliación de salones de belleza más grande de Honduras. Transforma tus recomendaciones en oportunidades de crecimiento." />
+                <meta property="og:image" content={`${siteUrl}/storage/banner.png`} />
+                <meta property="og:url" content={siteUrl} />
+                <meta property="og:type" content="website" />
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:title" content="Red Pro Beauty — El Poder de tu Salón" />
+                <meta name="twitter:description" content="Únete a la red de afiliación de salones de belleza más grande de Honduras." />
+                <meta name="twitter:image" content={`${siteUrl}/storage/banner.png`} />
+                <link rel="preload" as="image" href="/storage/banner.png" />
+            </Head>
 
-                <Box
-                    sx={{
-                        minHeight: '100vh',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        bgcolor: 'background.default',
-                    }}
-                >
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{
+                    __html: JSON.stringify([
+                        {
+                            "@context": "https://schema.org",
+                            "@type": "Organization",
+                            name: "Red Pro Beauty",
+                            url: siteUrl,
+                            logo: `${siteUrl}/storage/logo.png`,
+                            description:
+                                "Red comercial de salones de belleza en Honduras. Red de afiliación para profesionales de la belleza.",
+                            address: {
+                                "@type": "PostalAddress",
+                                addressLocality: "Tegucigalpa",
+                                addressCountry: "HN",
+                            },
+                            sameAs: [
+                                "https://facebook.com/redprobeauty",
+                                "https://instagram.com/redprobeauty",
+                            ],
+                        },
+                        {
+                            "@context": "https://schema.org",
+                            "@type": "WebSite",
+                            name: "Red Pro Beauty",
+                            url: siteUrl,
+                            description:
+                                "Red comercial de salones de belleza en Honduras. Red de afiliación para profesionales de la belleza.",
+                        },
+                    ]),
+                }}
+            />
+
+            <Box
+                sx={{
+                    minHeight: '100vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    bgcolor: 'background.default',
+                }}
+            >
 
                 {/* ─── Full-width Hero + Nav ─── */}
                     <Box
+                        component="header"
                         sx={{
                             position: 'relative',
                             width: '100%',
@@ -277,6 +327,7 @@ export default function Welcome({
                                         />
                                         <Typography
                                             variant="h2"
+                                            component="h1"
                                             sx={{
                                                 lineHeight: 1.08,
                                                 color: 'common.white',
@@ -351,11 +402,152 @@ export default function Welcome({
                         </Container>
                     </Box>
 
-                    <Container maxWidth={false} sx={{ flex: 1, position: 'relative', py: { xs: 4, md: 9 }, width: '90%', mx: 'auto' }}>
+                    <Container component="main" maxWidth={false} sx={{ flex: 1, position: 'relative', py: { xs: 4, md: 9 }, width: '90%', mx: 'auto' }}>
+
+                    {/* ─── Promociones Activas ─── */}
+                    {(() => {
+                        const activePromos = promotions.filter((p) => p.type === '2x1' || p.type === 'descuento' || p.type === 'combo');
+                        if (activePromos.length === 0) return null;
+                        return (
+                            <Box component="section" sx={{ mb: 8 }}>
+                                <SlideIn>
+                                    <Stack spacing={1} sx={{ textAlign: 'center', mb: 3 }}>
+                                        <Chip
+                                            label="Promociones Activas"
+                                            sx={{ fontWeight: 900, alignSelf: 'center', bgcolor: '#e91e63', color: '#fff' }}
+                                        />
+                                        <Typography variant="h4" sx={{ fontWeight: 950 }}>
+                                            Ofertas y Combos Especiales
+                                        </Typography>
+                                        <Typography variant="body1" color="text.secondary">
+                                            Aprovecha nuestras promociones vigentes en productos profesionales.
+                                        </Typography>
+                                    </Stack>
+                                </SlideIn>
+                                <Grid container spacing={2.5}>
+                                    {activePromos.map((promo, i) => {
+                                        const isCombo = promo.type === 'combo';
+                                        const is2x1 = promo.type === '2x1';
+                                        const isDiscount = promo.type === 'descuento';
+                                        const bgColor = is2x1 ? '#e91e63' : isCombo ? '#9c27b0' : '#ff9800';
+                                        return (
+                                            <Grid key={promo.id} item xs={12} sm={6} md={4}>
+                                                <SlideIn delayMs={i * 80}>
+                                                    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
+                                                        <Box
+                                                            sx={{
+                                                                position: 'absolute',
+                                                                top: -8,
+                                                                right: 16,
+                                                                bgcolor: bgColor,
+                                                                color: '#fff',
+                                                                px: 1.5,
+                                                                py: 0.5,
+                                                                borderRadius: 1,
+                                                                fontWeight: 900,
+                                                                fontSize: 14,
+                                                                zIndex: 2,
+                                                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                                            }}
+                                                        >
+                                                            {is2x1 ? '2x1' : isCombo ? `Combo ${promo.value}%` : `${promo.value}% OFF`}
+                                                        </Box>
+                                                        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                                            <Stack spacing={1.5} sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                                                <Typography variant="h6" sx={{ fontWeight: 900, pr: 6 }}>
+                                                                    {promo.name}
+                                                                </Typography>
+                                                                <Typography variant="caption" color="text.secondary">
+                                                                    Vigencia: {new Date(promo.startDate).toLocaleDateString()} — {new Date(promo.endDate).toLocaleDateString()}
+                                                                </Typography>
+                                                                {is2x1 && (
+                                                                    <Typography variant="body2" color="text.secondary">
+                                                                        Lleva 2 productos al precio de 1 en productos seleccionados.
+                                                                    </Typography>
+                                                                )}
+                                                                {isDiscount && (
+                                                                    <Typography variant="body2" color="text.secondary">
+                                                                        {promo.value}% de descuento en productos seleccionados.
+                                                                    </Typography>
+                                                                )}
+                                                                {isCombo && (
+                                                                    <Typography variant="body2" color="text.secondary">
+                                                                        Combo con {promo.value}% de ahorro en productos seleccionados.
+                                                                    </Typography>
+                                                                )}
+                                                                {promo.products && promo.products.length > 0 && (
+                                                                    <Stack spacing={1}>
+                                                                        <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                                                            Productos incluidos:
+                                                                        </Typography>
+                                                                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                                                            {promo.products.slice(0, 4).map((prod) => (
+                                                                                <Box
+                                                                                    key={prod.id}
+                                                                                    sx={{
+                                                                                        display: 'flex',
+                                                                                        alignItems: 'center',
+                                                                                        gap: 0.75,
+                                                                                        bgcolor: 'grey.100',
+                                                                                        borderRadius: 1,
+                                                                                        px: 1,
+                                                                                        py: 0.5,
+                                                                                    }}
+                                                                                >
+                                                                                    <Box
+                                                                                        sx={{
+                                                                                            width: 28,
+                                                                                            height: 28,
+                                                                                            borderRadius: 0.5,
+                                                                                            bgcolor: 'grey.200',
+                                                                                            background: prod.image ? `url(${prod.image}) center/cover no-repeat` : undefined,
+                                                                                            display: 'flex',
+                                                                                            alignItems: 'center',
+                                                                                            justifyContent: 'center',
+                                                                                            flexShrink: 0,
+                                                                                            overflow: 'hidden',
+                                                                                        }}
+                                                                                    >
+                                                                                        {!prod.image && <Inventory2 sx={{ fontSize: 16, color: 'text.disabled' }} />}
+                                                                                    </Box>
+                                                                                    <Typography variant="caption" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+                                                                                        {prod.name}
+                                                                                    </Typography>
+                                                                                </Box>
+                                                                            ))}
+                                                                            {promo.products.length > 4 && (
+                                                                                <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
+                                                                                    +{promo.products.length - 4} más
+                                                                                </Typography>
+                                                                            )}
+                                                                        </Stack>
+                                                                    </Stack>
+                                                                )}
+                                                                <Box sx={{ flex: 1 }} />
+                                                                <Button
+                                                                    component={Link}
+                                                                    href={route('shop.catalog')}
+                                                                    size="small"
+                                                                    variant="outlined"
+                                                                    sx={{ alignSelf: 'flex-start', fontWeight: 700, borderColor: bgColor, color: bgColor, '&:hover': { borderColor: bgColor, bgcolor: `${bgColor}15` } }}
+                                                                >
+                                                                    Ver productos
+                                                                </Button>
+                                                            </Stack>
+                                                        </CardContent>
+                                                    </Card>
+                                                </SlideIn>
+                                            </Grid>
+                                        );
+                                    })}
+                                </Grid>
+                            </Box>
+                        );
+                    })()}
 
                     {/* ─── Artículos Destacados ─── */}
                     {featuredArticles.length > 0 && (
-                        <Box sx={{ mb: 8 }}>
+                        <Box component="section" sx={{ mb: 8 }}>
                             <SlideIn>
                                 <Stack spacing={1} sx={{ textAlign: 'center', mb: 3 }}>
                                     <Chip
@@ -472,7 +664,7 @@ export default function Welcome({
                     )}
 
                     {/* ─── Nuestra Historia ─── */}
-                    <Box sx={{ mt: 10, mb: 6 }}>
+                    <Box component="section" sx={{ mt: 10, mb: 6 }}>
                         <SlideIn>
                             <Stack spacing={2} sx={{ textAlign: 'center', maxWidth: 800, mx: 'auto' }}>
                                 <Chip
@@ -559,7 +751,7 @@ export default function Welcome({
                     </Grid>
 
                     {/* ─── Valores ─── */}
-                    <Box sx={{ mb: 10 }}>
+                    <Box component="section" sx={{ mb: 10 }}>
                         <SlideIn>
                             <Stack spacing={1} sx={{ textAlign: 'center', mb: 4 }}>
                                 <Chip
@@ -698,7 +890,7 @@ export default function Welcome({
                     </Grid>
 
                     {/* ─── Perfil del Afiliado ─── */}
-                    <Box sx={{ mb: 10 }}>
+                    <Box component="section" sx={{ mb: 10 }}>
                         <SlideIn>
                             <Stack spacing={1} sx={{ textAlign: 'center', mb: 4 }}>
                                 <Chip
@@ -739,7 +931,7 @@ export default function Welcome({
                     </Box>
 
                     {/* ─── Líderes Red Pro Beauty ─── */}
-                    <Box sx={{ mb: 10 }}>
+                    <Box component="section" sx={{ mb: 10 }}>
                         <SlideIn>
                             <Card
                                 sx={{
@@ -806,7 +998,7 @@ export default function Welcome({
                     </Box>
 
                     {/* ─── Mensaje Principal ─── */}
-                    <Box sx={{ mb: 10 }}>
+                    <Box component="section" sx={{ mb: 10 }}>
                         <SlideIn>
                             <Card sx={{ textAlign: 'center', p: { xs: 3, md: 5 } }}>
                                 <CardContent>
@@ -833,7 +1025,7 @@ export default function Welcome({
                     </Box>
 
                     {/* ─── Personalidad de Marca ─── */}
-                    <Box sx={{ mb: 10 }}>
+                    <Box component="section" sx={{ mb: 10 }}>
                         <SlideIn>
                             <Stack spacing={1} sx={{ textAlign: 'center', mb: 3 }}>
                                 <Chip
@@ -858,7 +1050,7 @@ export default function Welcome({
                     </Box>
 
                     {/* ─── Fundadora ─── */}
-                    <Box sx={{ mb: 10 }}>
+                    <Box component="section" sx={{ mb: 10 }}>
                         <SlideIn>
                             <Card>
                                 <CardContent sx={{ p: { xs: 3, md: 5 } }}>
@@ -906,7 +1098,7 @@ export default function Welcome({
                     </Box>
 
                     {/* ─── Cierre Corporativo ─── */}
-                    <Box sx={{ mt: 10, mb: 6, textAlign: 'center' }}>
+                    <Box component="section" sx={{ mt: 10, mb: 6, textAlign: 'center' }}>
                         <SlideIn>
                             <Stack spacing={2} alignItems="center">
                                 <Box

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Article;
+use App\Models\InventoryMovement;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -68,49 +70,95 @@ class OrderController extends Controller
 
         $authUser = $request->user();
 
-        $order = DB::transaction(function () use ($validated, $authUser) {
-            $year = now()->format('Y');
-            $lastOrder = Order::query()
-                ->whereYear('created_at', $year)
-                ->lockForUpdate()
-                ->orderByDesc('id')
-                ->first();
+        // Determine price tier based on client type
+        $priceTier = 'price'; // default salon price
+        if ($authUser->role === User::ROLE_LIDER && empty($validated['salon_id'])) {
+            $priceTier = 'leader_price';
+        } elseif (! empty($validated['salon_id'])) {
+            $customer = User::query()->find($validated['salon_id']);
+            if ($customer) {
+                $priceTier = match ($customer->client_type) {
+                    User::CLIENT_TYPE_CONSUMIDOR_FINAL => 'public_price',
+                    default => 'price',
+                };
+            }
+        }
 
-            $nextId = $lastOrder ? $lastOrder->id + 1 : 1;
+        try {
+            $order = DB::transaction(function () use ($validated, $authUser) {
+                $year = now()->format('Y');
+                $lastOrder = Order::query()
+                    ->whereYear('created_at', $year)
+                    ->lockForUpdate()
+                    ->orderByDesc('id')
+                    ->first();
 
-            return Order::query()->create([
-                'user_id' => $authUser->id,
-                'salon_id' => $validated['salon_id'] ?? null,
-                'order_number' => 'ORD-'.$year.'-'.str_pad((string) $nextId, 5, '0', STR_PAD_LEFT),
-                'status' => Order::STATUS_PACKAGING,
-                'subtotal' => $validated['subtotal'],
-                'total_discount' => $validated['total_discount'],
-                'isv' => $validated['isv'],
-                'grand_total' => $validated['grand_total'],
-                'points_earned' => $validated['points_earned'],
-                'payment_method' => $validated['payment_method'] ?? 'prototype',
-                'stripe_payment_intent_id' => $validated['stripe_payment_intent_id'] ?? null,
-                'customer_name' => $validated['customer_name'],
-                'customer_email' => $validated['customer_email'],
-                'notes' => $validated['notes'] ?? null,
-            ])->load(['user:id,name,email', 'salon:id,name,email']);
-        });
+                $nextId = $lastOrder ? $lastOrder->id + 1 : 1;
 
-        $itemsData = array_map(fn ($item) => [
-            'order_id' => $order->id,
-            'product_name' => $item['product_name'],
-            'product_id' => $item['product_id'] ?? null,
-            'quantity' => $item['quantity'],
-            'unit_price' => $item['unit_price'],
-            'discount' => $item['discount'],
-            'promo_type' => $item['promo_type'] ?? null,
-            'subtotal' => $item['subtotal'],
-        ], $validated['items']);
+                $order = Order::query()->create([
+                    'user_id' => $authUser->id,
+                    'salon_id' => $validated['salon_id'] ?? null,
+                    'order_number' => 'ORD-'.$year.'-'.str_pad((string) $nextId, 5, '0', STR_PAD_LEFT),
+                    'status' => Order::STATUS_PACKAGING,
+                    'subtotal' => $validated['subtotal'],
+                    'total_discount' => $validated['total_discount'],
+                    'isv' => $validated['isv'],
+                    'grand_total' => $validated['grand_total'],
+                    'points_earned' => $validated['points_earned'],
+                    'payment_method' => $validated['payment_method'] ?? 'prototype',
+                    'stripe_payment_intent_id' => $validated['stripe_payment_intent_id'] ?? null,
+                    'customer_name' => $validated['customer_name'],
+                    'customer_email' => $validated['customer_email'],
+                    'notes' => $validated['notes'] ?? null,
+                ]);
 
-        $order->items()->createMany($itemsData);
+                $itemsData = array_map(fn ($item) => [
+                    'order_id' => $order->id,
+                    'product_name' => $item['product_name'],
+                    'product_id' => $item['product_id'] ?? null,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'discount' => $item['discount'],
+                    'promo_type' => $item['promo_type'] ?? null,
+                    'subtotal' => $item['subtotal'],
+                ], $validated['items']);
 
-        return redirect()->route('rc.orders')
-            ->with('success', 'Pedido #'.$order->order_number.' creado correctamente.');
+                $order->items()->createMany($itemsData);
+
+                // Validate and deduct stock for each item
+                foreach ($validated['items'] as $item) {
+                    if (! empty($item['product_id'])) {
+                        $articleId = (int) str_replace('art-', '', $item['product_id']);
+                        $article = Article::query()->find($articleId);
+                        if ($article && $article->stock !== null) {
+                            if ($article->stock < $item['quantity']) {
+                                throw new \RuntimeException(
+                                    "Stock insuficiente para {$article->name}: disponible {$article->stock}, solicitado {$item['quantity']}"
+                                );
+                            }
+                            $stockBefore = $article->stock;
+                            $article->decrement('stock', $item['quantity']);
+                            InventoryMovement::query()->create([
+                                'article_id' => $article->id,
+                                'type' => 'sale',
+                                'quantity' => $item['quantity'],
+                                'stock_before' => $stockBefore,
+                                'stock_after' => $article->fresh()->stock,
+                                'note' => 'Pedido #'.$order->order_number,
+                            ]);
+                        }
+                    }
+                }
+
+                return $order->load(['user:id,name,email', 'salon:id,name,email']);
+            });
+
+            return redirect()->route('rc.orders')
+                ->with('success', 'Pedido #'.$order->order_number.' creado correctamente.');
+        } catch (\RuntimeException $e) {
+            return redirect()->back()
+                ->with('error', $e->getMessage());
+        }
     }
 
     public function updateStatus(Request $request, int $id): RedirectResponse

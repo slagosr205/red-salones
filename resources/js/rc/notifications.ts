@@ -35,3 +35,10 @@ export function addNotification(userId: number | string, message: string) {
     safeSetItem(notifKey(userId), JSON.stringify(next));
     window.dispatchEvent(new Event('rc_notifications_changed'));
 }
+
+export function removeNotification(userId: number | string, id: string) {
+    const list = getNotifications(userId);
+    const next = list.filter((n) => n.id !== id);
+    safeSetItem(notifKey(userId), JSON.stringify(next));
+    window.dispatchEvent(new Event('rc_notifications_changed'));
+}

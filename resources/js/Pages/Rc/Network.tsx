@@ -25,6 +25,7 @@ type NetworkRow = {
     name: string;
     email: string;
     role: 'Lider' | 'Salon';
+    client_type: string | null;
     leader: string;
     leader_id: number | null;
     status: 'Activo' | 'Pendiente';
@@ -32,7 +33,7 @@ type NetworkRow = {
 };
 
 type Leader = { id: number; name: string; email: string };
-type PendingUser = { id: number; name: string; email: string; created_at: string };
+type PendingUser = { id: number; name: string; email: string; client_type: string | null; created_at: string };
 
 export default function NetworkPage() {
     const user = usePage().props.auth.user;
@@ -79,6 +80,7 @@ export default function NetworkPage() {
                 name: u.name,
                 email: u.email,
                 role: u.role === 'lider' ? 'Lider' as const : 'Salon' as const,
+                client_type: u.client_type ?? null,
                 leader: u.leader ? u.leader.name : '-',
                 leader_id: u.leader_id,
                 status: u.status === 'active' ? 'Activo' as const : 'Pendiente' as const,
@@ -93,7 +95,20 @@ export default function NetworkPage() {
         () => [
             { field: 'name', headerName: 'Nombre', flex: 2, minWidth: 200 },
             { field: 'email', headerName: 'Email', flex: 2, minWidth: 200 },
-            { field: 'role', headerName: 'Tipo', flex: 1, minWidth: 100 },
+            { field: 'role', headerName: 'Rol', flex: 1, minWidth: 100 },
+            {
+                field: 'client_type',
+                headerName: 'Tipo Cliente',
+                flex: 1,
+                minWidth: 150,
+                renderCell: (params) => {
+                    if (params.row.role === 'Lider') return <Typography variant="body2" color="text.secondary">—</Typography>;
+                    const label = params.value === 'consumidor_final' ? 'Consumidor Final' : 'Salón';
+                    return (
+                        <Chip size="small" label={label} color={params.value === 'consumidor_final' ? 'success' : 'primary'} variant="outlined" />
+                    );
+                },
+            },
             {
                 field: 'leader',
                 headerName: 'Lider',

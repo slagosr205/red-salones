@@ -21,6 +21,7 @@ interface Article {
     category: string | null;
     price: number | null;
     leader_price: number | null;
+    public_price: number | null;
     stock: number | null;
     points: number | null;
     summary: string | null;
@@ -35,6 +36,7 @@ export default function ArticlesEdit({ article, categories = [] }: { article: Ar
         category: article.category ?? '',
         price: article.price != null ? String(article.price) : '',
         leader_price: article.leader_price != null ? String(article.leader_price) : '',
+        public_price: article.public_price != null ? String(article.public_price) : '',
         stock: article.stock != null ? String(article.stock) : '',
         points: article.points != null ? String(article.points) : '',
         summary: article.summary ?? '',
@@ -110,6 +112,15 @@ export default function ArticlesEdit({ article, categories = [] }: { article: Ar
                                 onChange={(e) => setData('leader_price', e.target.value)}
                                 error={!!errors.leader_price}
                                 helperText={errors.leader_price}
+                            />
+                            <TextField
+                                label="Precio Público (Consumidor Final)"
+                                type="number"
+                                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                                value={data.public_price}
+                                onChange={(e) => setData('public_price', e.target.value)}
+                                error={!!errors.public_price}
+                                helperText={errors.public_price}
                             />
                             <TextField
                                 label="Stock"

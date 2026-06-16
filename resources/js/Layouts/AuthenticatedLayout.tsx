@@ -19,6 +19,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import {
     Assessment,
+    CloudUpload,
     Groups,
     Inventory2,
     LocalShipping,
@@ -34,7 +35,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode, useEffect, useMemo, useState } from 'react';
 
 import { cartCount } from '@/rc/cart';
-import { getNotifications, type Notification } from '@/rc/notifications';
+import { getNotifications, removeNotification, type Notification } from '@/rc/notifications';
 import { RcRole } from '@/rc/role';
 
 const drawerWidth = 280;
@@ -61,6 +62,7 @@ const routeMap: Record<string, string> = {
     'rc.articles': '/rc/articulos',
     'rc.masterclasses': '/rc/master-classes',
     'rc.inventory': '/rc/inventario',
+    'rc.bulk-upload': '/rc/carga-masiva',
     'rc.settings': '/rc/configuracion',
     'rc.pos': '/rc/pos',
 };
@@ -191,6 +193,13 @@ function useNav(role: RcRole): NavItem[] {
                 href: '/rc/inventario',
                 icon: <Inventory2 fontSize="small" />,
                 active: isActive('rc.inventory'),
+            });
+            items.push({
+                key: 'bulk-upload',
+                label: 'Carga Masiva',
+                href: '/rc/carga-masiva',
+                icon: <CloudUpload fontSize="small" />,
+                active: isActive('rc.bulk-upload'),
             });
         }
 
@@ -352,7 +361,7 @@ export default function Authenticated({
                                     cursor: 'pointer',
                                     '&:hover': { bgcolor: 'action.hover' },
                                 }}
-                                onClick={() => setNotifAnchor(null)}
+                                onClick={() => removeNotification(userId, n.id)}
                             >
                                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                                     {n.message}

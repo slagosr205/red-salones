@@ -60,12 +60,20 @@ class RegistrationController extends Controller
         ]);
     }
 
-    public function approve(int $id): RedirectResponse
+    public function approve(Request $request, int $id): RedirectResponse
     {
         $this->authorizeApprover();
 
         $user = User::query()->findOrFail($id);
-        $user->update(['status' => 'active']);
+
+        $validated = $request->validate([
+            'client_type' => ['required', 'string', 'in:'.implode(',', User::CLIENT_TYPES)],
+        ]);
+
+        $user->update([
+            'status' => User::STATUS_ACTIVE,
+            'client_type' => $validated['client_type'],
+        ]);
 
         return redirect()->back()->with('success', "Usuario {$user->name} aprobado correctamente.");
     }

@@ -10,6 +10,7 @@ import {
     CircularProgress,
 } from '@mui/material';
 import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import axios from 'axios';
 
 type Props = {
     open: boolean;
@@ -35,16 +36,14 @@ export default function PaymentDialog({ open, onClose, amount, currency = 'hnl',
         setError(null);
 
         try {
-            const res = await fetch(route('rc.create-payment'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
-                },
-                body: JSON.stringify({ amount: amountCents, currency, customerName, customerEmail }),
+            const res = await axios.post(route('rc.create-payment'), {
+                amount: amountCents,
+                currency,
+                customerName,
+                customerEmail,
             });
 
-            const data = await res.json();
+            const data = res.data;
             if (!data.success) {
                 setError(data.message ?? 'Error al iniciar el pago');
                 setProcessing(false);

@@ -21,6 +21,7 @@ export default function ArticlesCreate({ categories = [] }: { categories?: strin
         category: '',
         price: '',
         leader_price: '',
+        public_price: '',
         stock: '',
         points: '',
         summary: '',
@@ -96,6 +97,15 @@ export default function ArticlesCreate({ categories = [] }: { categories?: strin
                                 onChange={(e) => setData('leader_price', e.target.value)}
                                 error={!!errors.leader_price}
                                 helperText={errors.leader_price}
+                            />
+                            <TextField
+                                label="Precio Público (Consumidor Final)"
+                                type="number"
+                                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                                value={data.public_price}
+                                onChange={(e) => setData('public_price', e.target.value)}
+                                error={!!errors.public_price}
+                                helperText={errors.public_price}
                             />
                             <TextField
                                 label="Stock"

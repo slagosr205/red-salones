@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\BenefitController;
+use App\Http\Controllers\BulkUploadController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrintController;
@@ -11,6 +13,7 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserManagementController;
+use App\Models\Article;
 use App\Models\User;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +32,7 @@ Route::get('/', function () {
 Route::get('/api/articulos-destacados', [ArticleController::class, 'featured'])->name('api.articles.featured');
 Route::get('/api/catalogo-articulos', [ArticleController::class, 'catalog'])->name('api.articles.catalog');
 Route::get('/api/promociones-activas', [PromotionController::class, 'activePromotions'])->name('api.promotions.active');
+Route::get('/api/promociones-activas-con-productos', [PromotionController::class, 'activeWithProducts'])->name('api.promotions.active-with-products');
 
 // Public benefits API
 Route::get('/api/beneficios', [BenefitController::class, 'index'])->name('api.benefits.index');
@@ -43,6 +47,14 @@ Route::middleware(['auth'])->prefix('api/promociones')->name('api.promotions.')-
     Route::match(['put', 'patch'], '/{promotion}', [PromotionController::class, 'update'])->name('update');
     Route::delete('/{promotion}', [PromotionController::class, 'destroy'])->name('destroy');
     Route::post('/{promotion}/toggle', [PromotionController::class, 'toggle'])->name('toggle');
+});
+
+// Inventory API
+Route::middleware(['auth'])->prefix('api/inventario')->name('api.inventory.')->group(function () {
+    Route::get('/', [InventoryController::class, 'index'])->name('index');
+    Route::get('/movimientos', [InventoryController::class, 'movements'])->name('movements');
+    Route::post('/entrada', [InventoryController::class, 'entry'])->name('entry');
+    Route::post('/min-stock', [InventoryController::class, 'setMinStock'])->name('min-stock');
 });
 
 // Public storefront (clients can browse and build a cart without login).
@@ -77,7 +89,7 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
             ->with('leader:id,name,email,role')
             ->orderBy('role')
             ->orderBy('name')
-            ->get(['id', 'name', 'email', 'role', 'leader_id']);
+            ->get(['id', 'name', 'email', 'role', 'leader_id', 'client_type']);
 
         return Inertia::render('Rc/Pos', [
             'customers' => $customers,
@@ -87,7 +99,19 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
     Route::get('/puntos', fn () => Inertia::render('Rc/Points'))->name('points');
     Route::get('/canjes', fn () => Inertia::render('Rc/Redeem'))->name('redeem');
     Route::get('/master-classes', fn () => Inertia::render('Rc/MasterClasses'))->name('masterclasses');
-    Route::get('/inventario', fn () => Inertia::render('Rc/Inventory'))->name('inventory');
+    Route::get('/inventario', function () {
+        $items = Article::query()->orderBy('name')->get()->map(fn ($a) => [
+            'id' => 'art-'.$a->id,
+            'name' => $a->name,
+            'brand' => $a->brand ?? '',
+            'category' => $a->category ?? '',
+            'price' => (float) ($a->price ?? 0),
+            'stock' => $a->stock ?? 0,
+            'minStock' => $a->min_stock ?? 0,
+        ]);
+
+        return Inertia::render('Rc/Inventory', ['items' => $items]);
+    })->name('inventory');
     Route::get('/promociones', fn () => Inertia::render('Rc/Promotions'))->name('promotions');
     Route::get('/reportes', [ReportController::class, 'index'])->name('reports');
     Route::get('/red-comercial', function () {
@@ -103,7 +127,7 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
             ->with('leader:id,name,email')
             ->orderBy('status')
             ->orderBy('name')
-            ->get(['id', 'name', 'email', 'role', 'leader_id', 'status', 'created_at']);
+            ->get(['id', 'name', 'email', 'role', 'leader_id', 'status', 'client_type', 'created_at']);
 
         $leaders = $isAdmin
             ? User::query()->where('role', User::ROLE_LIDER)->where('status', User::STATUS_ACTIVE)->get(['id', 'name', 'email'])
@@ -112,7 +136,7 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
         $pending = $canApprove
             ? User::query()->where('status', User::STATUS_PENDING)->where('role', User::ROLE_SALON)
                 ->when($isLider, fn ($q) => $q->where('leader_id', $authUser->id))
-                ->get(['id', 'name', 'email', 'created_at'])
+                ->get(['id', 'name', 'email', 'client_type', 'created_at'])
             : collect();
 
         return Inertia::render('Rc/Network', [
@@ -141,6 +165,11 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
     Route::match(['patch', 'post'], '/articulos/{id}', [ArticleController::class, 'update'])->name('articles.update');
     Route::delete('/articulos/{id}', [ArticleController::class, 'destroy'])->name('articles.destroy');
     Route::post('/articulos/{id}/toggle-featured', [ArticleController::class, 'toggleFeatured'])->name('articles.toggle-featured');
+
+    Route::get('/carga-masiva', fn () => Inertia::render('Rc/BulkUpload'))->name('bulk-upload');
+    Route::get('/carga-masiva/plantilla', [BulkUploadController::class, 'downloadTemplate'])->name('bulk-upload.template');
+    Route::post('/carga-masiva/articulos', [BulkUploadController::class, 'uploadArticles'])->name('bulk-upload.articles');
+    Route::post('/carga-masiva/stock', [BulkUploadController::class, 'uploadStock'])->name('bulk-upload.stock');
 
     Route::get('/pedidos', [OrderController::class, 'index'])->name('orders');
     Route::get('/pedidos/{id}', [OrderController::class, 'show'])->name('orders.show');

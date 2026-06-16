@@ -28,7 +28,6 @@ import { useEffect, useMemo, useState } from 'react';
 import PaymentDialog from '@/Components/PaymentDialog';
 import ReceiptDialog from '@/Components/ReceiptDialog';
 import { clearCart, getCart, removeFromCart, updateQty } from '@/rc/cart';
-import { deductStock } from '@/rc/inventory';
 import { getDiscountForProduct, getPromotionsForProduct, refreshActivePromotions } from '@/rc/promotions';
 import { products as mockProducts } from '@/rc/mock';
 import { getLeaderEmail } from '@/rc/network';
@@ -37,17 +36,18 @@ import { addPointsEvent } from '@/rc/points';
 import { getReceiptConfig } from '@/rc/receipt';
 import type { RcRole } from '@/rc/role';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_KEY ?? '');
-
 const salones = [
     { id: 's-001', name: 'Salon Glam Studio', email: 'glam@salon.hn' },
     { id: 's-002', name: 'Salon Bella Forma', email: 'bella@salon.hn' },
     { id: 's-003', name: 'Salon Nova Beauty', email: 'nova@salon.hn' },
 ];
 
-function effectivePrice(p: any, role: string): number {
+function effectivePrice(p: any, role: string, clientType?: string | null): number {
     if (role === 'lider' || role === 'admin') {
         return p.leader_price ?? p.price ?? 0;
+    }
+    if (clientType === 'consumidor_final') {
+        return p.public_price ?? p.price ?? 0;
     }
     return p.price ?? 0;
 }
@@ -60,6 +60,9 @@ export default function CartPage() {
     const user = usePage().props.auth.user;
     const userId = user.id;
     const userRole: RcRole = user.role ?? 'salon';
+    const userClientType = user.client_type;
+
+    const stripePromise = useMemo(() => loadStripe(import.meta.env.VITE_STRIPE_KEY ?? ''), []);
 
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [paymentOpen, setPaymentOpen] = useState(false);
@@ -96,7 +99,7 @@ export default function CartPage() {
             .map((ci) => {
                 const p = allProducts.find((x: any) => x.id === ci.productId);
                 if (!p) return null;
-                const unitPrice = effectivePrice(p, userRole);
+                const unitPrice = effectivePrice(p, userRole, userClientType);
                 return {
                     ...ci,
                     product: p,
@@ -156,14 +159,9 @@ export default function CartPage() {
             });
         } catch {
             addNotification(userId, 'Error al crear el pedido. Los datos locales se guardaron igualmente.');
+            setPurchasing(false);
+            return;
         }
-
-        rows.forEach((r) => {
-            const ok = deductStock(r.productId, r.qty, `Venta: ${desc}`);
-            if (!ok) {
-                addNotification(userId, `Stock insuficiente para ${r.product.name}`);
-            }
-        });
 
         setReceiptItems(
             rows.map((r) => ({

@@ -16,6 +16,27 @@ export type Promotion = {
 
 let activePromotionsCache: Promotion[] = [];
 
+export interface PromotionProduct {
+  id: string;
+  name: string;
+  brand: string | null;
+  price: number;
+  image: string | null;
+}
+
+export interface PromotionWithProducts extends Promotion {
+  products: PromotionProduct[];
+}
+
+export async function fetchActivePromotionsWithProducts(): Promise<PromotionWithProducts[]> {
+  try {
+    const res = await axios.get('/api/promociones-activas-con-productos');
+    return Array.isArray(res.data) ? res.data : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function refreshActivePromotions(): Promise<Promotion[]> {
   try {
     const res = await fetch('/api/promociones-activas');

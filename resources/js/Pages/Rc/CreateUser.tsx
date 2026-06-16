@@ -16,6 +16,7 @@ export default function CreateUser() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [role, setRole] = useState<string>('salon');
+    const [clientType, setClientType] = useState<string>('salon');
     const [leaderId, setLeaderId] = useState<number | ''>('');
     const [saving, setSaving] = useState(false);
 
@@ -33,6 +34,9 @@ export default function CreateUser() {
         };
         if (isAdmin) {
             payload.role = role;
+            if (!isCreatingLider) {
+                payload.client_type = clientType;
+            }
         }
         router.post(route('rc.users.store'), payload as any, {
             onFinish: () => setSaving(false),
@@ -68,6 +72,20 @@ export default function CreateUser() {
                                     >
                                         <MenuItem value="salon">Salon</MenuItem>
                                         <MenuItem value="lider">Lider</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            )}
+
+                            {isAdmin && !isCreatingLider && (
+                                <FormControl size="small">
+                                    <InputLabel>Tipo de cliente</InputLabel>
+                                    <Select
+                                        value={clientType}
+                                        label="Tipo de cliente"
+                                        onChange={(e) => setClientType(e.target.value)}
+                                    >
+                                        <MenuItem value="salon">Salón</MenuItem>
+                                        <MenuItem value="consumidor_final">Consumidor Final</MenuItem>
                                     </Select>
                                 </FormControl>
                             )}

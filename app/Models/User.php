@@ -28,6 +28,12 @@ class User extends Authenticatable
 
     const STATUS_REJECTED = 'rejected';
 
+    const CLIENT_TYPE_SALON = 'salon';
+
+    const CLIENT_TYPE_CONSUMIDOR_FINAL = 'consumidor_final';
+
+    const CLIENT_TYPES = [self::CLIENT_TYPE_SALON, self::CLIENT_TYPE_CONSUMIDOR_FINAL];
+
     protected $fillable = [
         'name',
         'email',
@@ -35,6 +41,7 @@ class User extends Authenticatable
         'role',
         'leader_id',
         'status',
+        'client_type',
     ];
 
     protected $hidden = [
@@ -48,6 +55,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'status' => 'string',
+            'client_type' => 'string',
         ];
     }
 

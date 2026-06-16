@@ -6,6 +6,13 @@
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        <meta name="description" content="Red Pro Beauty — La red comercial de salones de belleza más grande de Honduras. Red de afiliación para profesionales de la belleza.">
+        <meta name="keywords" content="salones de belleza, red comercial, afiliación, Honduras, Centroamérica, productos profesionales, estilistas, barberos, Red Pro Beauty">
+
+        <meta property="og:site_name" content="Red Pro Beauty">
+        <meta property="og:locale" content="es_HN">
+
+        <link rel="canonical" href="{{ url()->current() }}">
 
         <link rel="icon" type="image/png" href="/storage/logo.png" />
         <link rel="shortcut icon" href="/storage/logo.png" type="image/png" />

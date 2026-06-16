@@ -1,5 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
+import axios from 'axios';
 import {
     Autocomplete,
     Box,
@@ -23,6 +24,7 @@ import {
 } from '@mui/material';
 import {
     Add,
+    Info,
     Inventory2,
     Search,
     TrendingDown,
@@ -33,11 +35,8 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useEffect, useMemo, useState } from 'react';
 
 import {
-    addEntry,
+    addEntry as clientAddEntry,
     getInventory,
-    getMovements,
-    getRecentMovements,
-    setMinStock,
     setInventory,
     type InventoryItem,
     type StockMovement,
@@ -74,37 +73,51 @@ function articleToInventory(a: any): InventoryItem {
         category: a.category,
         brand: a.brand,
         stock: a.stock ?? 0,
-        minStock: 0,
+        minStock: a.minStock ?? 0,
         price: a.price ?? 0,
     };
 }
 
-export default function InventoryPage() {
-    const [items, setItems] = useState<InventoryItem[]>([]);
+export default function InventoryPage({ items: initialItems }: { items?: any[] }) {
+    const [items, setItems] = useState<InventoryItem[]>(() => {
+        if (initialItems && initialItems.length > 0) {
+            const inv = initialItems.map(articleToInventory);
+            setInventory(inv);
+            return inv;
+        }
+        return [];
+    });
     const [movements, setMovements] = useState<StockMovement[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        fetch('/api/catalogo-articulos')
-            .then((r) => r.json())
-            .then((data) => {
+        setLoading(true);
+        Promise.all([
+            fetch('/api/inventario').then((r) => r.json()),
+            fetch('/api/inventario/movimientos').then((r) => r.json()),
+        ])
+            .then(([data, movs]) => {
                 const inv = (data as any[]).map(articleToInventory);
                 setInventory(inv);
                 setItems(inv);
-                setMovements(getRecentMovements(20));
+                setMovements(movs as StockMovement[]);
                 setLoading(false);
             })
             .catch(() => setLoading(false));
     }, []);
 
-    useEffect(() => {
-        const onChange = () => {
-            setItems(getInventory());
-            setMovements(getRecentMovements(20));
-        };
-        window.addEventListener('rc_inventory_changed', onChange);
-        return () => window.removeEventListener('rc_inventory_changed', onChange);
-    }, []);
+    async function refreshInventory() {
+        try {
+            const [itemsRes, movsRes] = await Promise.all([
+                axios.get('/api/inventario'),
+                axios.get('/api/inventario/movimientos'),
+            ]);
+            const inv = (itemsRes.data as any[]).map(articleToInventory);
+            setInventory(inv);
+            setItems(inv);
+            setMovements(movsRes.data as StockMovement[]);
+        } catch { }
+    }
 
     const [search, setSearch] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
@@ -121,6 +134,8 @@ export default function InventoryPage() {
         if (category.includes(q)) return 60;
         return 0;
     }
+    const [movementDetail, setMovementDetail] = useState<StockMovement | null>(null);
+    const [articleMovements, setArticleMovements] = useState<{ productId: string; productName: string } | null>(null);
     const [entryOpen, setEntryOpen] = useState(false);
     const [minOpen, setMinOpen] = useState<string | null>(null);
     const [minValue, setMinValue] = useState(10);
@@ -161,7 +176,11 @@ export default function InventoryPage() {
                 headerName: 'Categoria',
                 flex: 1,
                 minWidth: 120,
-                renderCell: (params) => <Chip size="small" label={params.value} />,
+                renderCell: (params) => (
+                    <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                        <Chip size="small" label={params.value} />
+                    </Box>
+                ),
             },
             { field: 'brand', headerName: 'Marca', flex: 1, minWidth: 120 },
             {
@@ -180,7 +199,7 @@ export default function InventoryPage() {
                 align: 'right',
                 headerAlign: 'right',
                 renderCell: (params) => (
-                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', gap: 0.5 }}>
                         <Typography variant="body2">{params.value}</Typography>
                         <Button
                             size="small"
@@ -192,7 +211,7 @@ export default function InventoryPage() {
                         >
                             Editar
                         </Button>
-                    </Stack>
+                    </Box>
                 ),
             },
             {
@@ -201,27 +220,40 @@ export default function InventoryPage() {
                 flex: 1,
                 minWidth: 100,
                 renderCell: (params) => (
-                    <Chip size="small" color={chipColor[params.value as StockRow['status']]} label={params.value} />
+                    <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                        <Chip size="small" color={chipColor[params.value as StockRow['status']]} label={params.value} />
+                    </Box>
                 ),
             },
             {
                 field: 'actions',
                 headerName: '',
-                flex: 1,
-                minWidth: 140,
+                flex: 1.2,
+                minWidth: 200,
                 sortable: false,
                 renderCell: (params) => (
-                    <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<Add />}
-                        onClick={() => {
-                            setEntryProduct(params.row.productId);
-                            setEntryOpen(true);
-                        }}
-                    >
-                        Entrada
-                    </Button>
+                    <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', gap: 0.5 }}>
+                        <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => {
+                                setEntryProduct(params.row.productId);
+                                setEntryOpen(true);
+                            }}
+                        >
+                            Entrada
+                        </Button>
+                        <Button
+                            size="small"
+                            variant="text"
+                            startIcon={<Info />}
+                            onClick={() => {
+                                setArticleMovements({ productId: params.row.productId, productName: params.row.product });
+                            }}
+                        >
+                            Movimientos
+                        </Button>
+                    </Box>
                 ),
             },
         ],
@@ -232,18 +264,32 @@ export default function InventoryPage() {
     const [entryQty, setEntryQty] = useState(1);
     const [entryNote, setEntryNote] = useState('');
 
-    const handleEntry = () => {
+    const handleEntry = async () => {
         if (entryQty < 1) return;
-        addEntry(entryProduct, entryQty, entryNote || undefined);
+        try {
+            await axios.post('/api/inventario/entrada', {
+                product_id: entryProduct,
+                qty: entryQty,
+                note: entryNote || undefined,
+            });
+            clientAddEntry(entryProduct, entryQty, entryNote || undefined);
+            await refreshInventory();
+        } catch { }
         setEntryOpen(false);
         setEntryQty(1);
         setEntryNote('');
     };
 
-    const handleSetMin = () => {
+    const handleSetMin = async () => {
         if (minOpen) {
-            setMinStock(minOpen, minValue);
+            try {
+                await axios.post('/api/inventario/min-stock', {
+                    product_id: minOpen,
+                    min_stock: minValue,
+                });
+            } catch { }
             setMinOpen(null);
+            await refreshInventory();
         }
     };
 
@@ -396,12 +442,16 @@ export default function InventoryPage() {
                                     direction="row"
                                     justifyContent="space-between"
                                     alignItems="center"
-                                    sx={{ p: 1, borderRadius: 1, bgcolor: 'action.hover' }}
+                                    onClick={() => setMovementDetail(m)}
+                                    sx={{ p: 1, borderRadius: 1, bgcolor: 'action.hover', cursor: 'pointer', '&:hover': { bgcolor: 'action.selected' } }}
                                 >
                                     <Box>
-                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                            {m.productName}
-                                        </Typography>
+                                        <Stack direction="row" alignItems="center" spacing={0.5}>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                {m.productName}
+                                            </Typography>
+                                            <Info sx={{ fontSize: 14, color: 'text.disabled' }} />
+                                        </Stack>
                                         <Typography variant="caption" color="text.secondary">
                                             {new Date(m.date).toLocaleString()} {m.note ? `- ${m.note}` : ''}
                                         </Typography>
@@ -484,6 +534,121 @@ export default function InventoryPage() {
                         Guardar
                     </Button>
                 </DialogActions>
+            </Dialog>
+
+            {/* Article movements dialog */}
+            <Dialog open={!!articleMovements} onClose={() => setArticleMovements(null)} maxWidth="sm" fullWidth>
+                {articleMovements && (() => {
+                    const filtered = movements.filter((m) => m.productId === articleMovements.productId);
+                    return (
+                        <>
+                            <DialogTitle>Movimientos de {articleMovements.productName}</DialogTitle>
+                            <DialogContent>
+                                {filtered.length === 0 ? (
+                                    <Typography color="text.secondary">Sin movimientos registrados.</Typography>
+                                ) : (
+                                    <Stack spacing={1}>
+                                        {filtered.map((m) => (
+                                            <Stack
+                                                key={m.id}
+                                                direction="row"
+                                                justifyContent="space-between"
+                                                alignItems="center"
+                                                onClick={() => { setArticleMovements(null); setMovementDetail(m); }}
+                                                sx={{ p: 1, borderRadius: 1, bgcolor: 'action.hover', cursor: 'pointer', '&:hover': { bgcolor: 'action.selected' } }}
+                                            >
+                                                <Box>
+                                                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                                                        <Chip
+                                                            size="small"
+                                                            color={m.type === 'entry' ? 'success' : m.type === 'sale' ? 'error' : 'warning'}
+                                                            label={
+                                                                m.type === 'entry' ? 'Entrada' :
+                                                                m.type === 'sale' ? 'Venta' : 'Ajuste'
+                                                            }
+                                                            sx={{ height: 20, fontSize: 10 }}
+                                                        />
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Stock: {m.stockBefore} → {m.stockAfter}
+                                                        </Typography>
+                                                    </Stack>
+                                                    <Typography variant="caption" color="text.disabled">
+                                                        {new Date(m.date).toLocaleString()} {m.note ? `- ${m.note}` : ''}
+                                                    </Typography>
+                                                </Box>
+                                                <Typography sx={{ fontWeight: 700, color: m.qty > 0 ? 'success.main' : 'error.main' }}>
+                                                    {m.qty > 0 ? `+${m.qty}` : m.qty}
+                                                </Typography>
+                                            </Stack>
+                                        ))}
+                                    </Stack>
+                                )}
+                            </DialogContent>
+                            <DialogActions sx={{ px: 2, pb: 2 }}>
+                                <Button variant="contained" onClick={() => setArticleMovements(null)}>
+                                    Cerrar
+                                </Button>
+                            </DialogActions>
+                        </>
+                    );
+                })()}
+            </Dialog>
+
+            {/* Movement detail dialog */}
+            <Dialog open={!!movementDetail} onClose={() => setMovementDetail(null)} maxWidth="xs" fullWidth>
+                {movementDetail && (
+                    <>
+                        <DialogTitle>Detalle del movimiento</DialogTitle>
+                        <DialogContent>
+                            <Stack spacing={2} sx={{ mt: 1 }}>
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography color="text.secondary">Producto</Typography>
+                                    <Typography sx={{ fontWeight: 700 }}>{movementDetail.productName}</Typography>
+                                </Stack>
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography color="text.secondary">Tipo</Typography>
+                                    <Chip
+                                        size="small"
+                                        color={movementDetail.type === 'entry' ? 'success' : movementDetail.type === 'sale' ? 'error' : 'warning'}
+                                        label={
+                                            movementDetail.type === 'entry' ? 'Entrada' :
+                                            movementDetail.type === 'sale' ? 'Venta' : 'Ajuste'
+                                        }
+                                    />
+                                </Stack>
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography color="text.secondary">Cantidad</Typography>
+                                    <Typography sx={{ fontWeight: 700, color: movementDetail.qty > 0 ? 'success.main' : 'error.main' }}>
+                                        {movementDetail.qty > 0 ? `+${movementDetail.qty}` : movementDetail.qty}
+                                    </Typography>
+                                </Stack>
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography color="text.secondary">Stock anterior</Typography>
+                                    <Typography sx={{ fontWeight: 700 }}>{movementDetail.stockBefore}</Typography>
+                                </Stack>
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography color="text.secondary">Stock posterior</Typography>
+                                    <Typography sx={{ fontWeight: 700 }}>{movementDetail.stockAfter}</Typography>
+                                </Stack>
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography color="text.secondary">Fecha</Typography>
+                                    <Typography>{new Date(movementDetail.date).toLocaleString()}</Typography>
+                                </Stack>
+                                {movementDetail.note && (
+                                    <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: 'grey.100' }}>
+                                        <Typography variant="caption" color="text.secondary">Nota</Typography>
+                                        <Typography variant="body2">{movementDetail.note}</Typography>
+                                    </Box>
+                                )}
+                            </Stack>
+                        </DialogContent>
+                        <DialogActions sx={{ px: 2, pb: 2 }}>
+                            <Button variant="contained" onClick={() => setMovementDetail(null)}>
+                                Cerrar
+                            </Button>
+                        </DialogActions>
+                    </>
+                )}
             </Dialog>
         </AuthenticatedLayout>
     );
