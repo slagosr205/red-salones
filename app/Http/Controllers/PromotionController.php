@@ -10,7 +10,18 @@ class PromotionController extends Controller
 {
     public function index(): JsonResponse
     {
-        $promotions = Promotion::with('articles:id')->orderByDesc('created_at')->get();
+        $promotions = Promotion::with('articles:id')->orderByDesc('created_at')->get()->map(fn ($p) => [
+            'id' => (string) $p->id,
+            'name' => $p->name,
+            'type' => $p->type,
+            'value' => (float) $p->value,
+            'startDate' => $p->start_date->format('Y-m-d'),
+            'endDate' => $p->end_date->format('Y-m-d'),
+            'active' => $p->active,
+            'targetRole' => $p->target_role,
+            'productIds' => $p->articles->pluck('id')->map(fn ($id) => 'art-'.$id)->toArray(),
+            'createdAt' => $p->created_at,
+        ]);
 
         return response()->json($promotions);
     }
@@ -24,6 +35,7 @@ class PromotionController extends Controller
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'active' => ['boolean'],
+            'target_role' => ['nullable', 'string', 'in:lider,salon,consumidor_final'],
             'article_ids' => ['nullable', 'array'],
             'article_ids.*' => ['integer', 'exists:articles,id'],
         ]);
@@ -35,6 +47,7 @@ class PromotionController extends Controller
             'start_date' => $validated['start_date'],
             'end_date' => $validated['end_date'],
             'active' => $validated['active'] ?? true,
+            'target_role' => $validated['target_role'] ?? null,
         ]);
 
         if (! empty($validated['article_ids'])) {
@@ -55,6 +68,7 @@ class PromotionController extends Controller
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'active' => ['boolean'],
+            'target_role' => ['nullable', 'string', 'in:lider,salon,consumidor_final'],
             'article_ids' => ['nullable', 'array'],
             'article_ids.*' => ['integer', 'exists:articles,id'],
         ]);
@@ -66,6 +80,7 @@ class PromotionController extends Controller
             'start_date' => $validated['start_date'],
             'end_date' => $validated['end_date'],
             'active' => $validated['active'] ?? true,
+            'target_role' => $validated['target_role'] ?? null,
         ]);
 
         $promotion->articles()->sync($validated['article_ids'] ?? []);
@@ -101,6 +116,7 @@ class PromotionController extends Controller
             'startDate' => $p->start_date->format('Y-m-d'),
             'endDate' => $p->end_date->format('Y-m-d'),
             'active' => $p->active,
+            'targetRole' => $p->target_role,
             'productIds' => $p->articles->pluck('id')->map(fn ($id) => 'art-'.$id)->toArray(),
         ]);
 
@@ -109,7 +125,9 @@ class PromotionController extends Controller
 
     public function activeWithProducts(): JsonResponse
     {
+        $user = request()->user();
         $promotions = Promotion::active()
+            ->when($user, fn ($q) => $q->forRole($user->role))
             ->with('articles:id,name,price,image_path,brand')
             ->get();
 
@@ -121,6 +139,7 @@ class PromotionController extends Controller
             'startDate' => $p->start_date->format('Y-m-d'),
             'endDate' => $p->end_date->format('Y-m-d'),
             'active' => $p->active,
+            'targetRole' => $p->target_role,
             'products' => $p->articles->map(fn ($a) => [
                 'id' => 'art-'.$a->id,
                 'name' => $a->name,

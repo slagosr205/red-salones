@@ -35,6 +35,7 @@ type Order = {
     grand_total: number;
     points_earned: number;
     payment_method: string;
+    stripe_payment_intent_id: string | null;
     customer_name: string;
     created_at: string;
     user: { id: number; name: string; email: string } | null;
@@ -182,7 +183,7 @@ export default function Orders({ orders }: Props) {
                                 </Stack>
 
                                 <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-                                    {NEXT_STATUS[order.status] && (
+                                    {isAdmin && NEXT_STATUS[order.status] && (
                                         <Button
                                             size="small"
                                             variant="outlined"
@@ -192,7 +193,7 @@ export default function Orders({ orders }: Props) {
                                             Marcar {STATUS_LABELS[NEXT_STATUS[order.status]!].toLowerCase()}
                                         </Button>
                                     )}
-                                    {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                                    {order.status === 'packaging' && isAdmin && (
                                         <Button
                                             size="small"
                                             variant="text"

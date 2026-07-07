@@ -12,12 +12,42 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\TodoPagoController;
 use App\Http\Controllers\UserManagementController;
+use App\Http\Controllers\ZoneController;
 use App\Models\Article;
+use App\Models\Order;
+use App\Models\Redemption;
 use App\Models\User;
+use App\Models\Zone;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
+Route::get('/storage/{path}', function (string $path) {
+    $fullPath = realpath(storage_path('app/public/'.$path));
+    $storageDir = realpath(storage_path('app/public'));
+
+    if (! $fullPath || ! str_starts_with($fullPath, $storageDir) || ! file_exists($fullPath) || is_dir($fullPath)) {
+        abort(404);
+    }
+
+    return response()->file($fullPath, [
+        'Cache-Control' => 'public, max-age=86400',
+    ]);
+})->where('path', '.*');
+
+Route::get('/favicon.ico', function () {
+    $file = realpath(storage_path('app/public/logo.png'));
+    if (! $file || ! file_exists($file)) {
+        abort(404);
+    }
+
+    return response()->file($file, [
+        'Content-Type' => 'image/x-icon',
+        'Cache-Control' => 'public, max-age=86400',
+    ]);
+});
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -39,6 +69,25 @@ Route::get('/api/beneficios', [BenefitController::class, 'index'])->name('api.be
 
 // Authenticated redeem API
 Route::middleware(['auth'])->post('/api/beneficios/canjear', [BenefitController::class, 'redeem'])->name('api.benefits.redeem');
+
+// TodoPago (diagnostico)
+Route::middleware(['auth'])->get('/api/todopago/health', [TodoPagoController::class, 'health'])->name('api.todopago.health');
+Route::middleware(['auth'])->post('/api/todopago/login', [TodoPagoController::class, 'login'])->name('api.todopago.login');
+Route::middleware(['auth'])->post('/api/todopago/pay', [TodoPagoController::class, 'pay'])->name('api.todopago.pay');
+Route::middleware(['auth'])->get('/api/todopago/accounts', [TodoPagoController::class, 'accounts'])->name('api.todopago.accounts');
+Route::middleware(['auth'])->post('/api/todopago/customer-register', [TodoPagoController::class, 'customerRegister'])->name('api.todopago.customer-register');
+Route::middleware(['auth'])->post('/api/todopago/account-register', [TodoPagoController::class, 'accountRegister'])->name('api.todopago.account-register');
+Route::middleware(['auth'])->post('/api/todopago/direct-payment', [TodoPagoController::class, 'directPayment'])->name('api.todopago.direct-payment');
+Route::middleware(['auth'])->post('/api/todopago/payment-reversal', [TodoPagoController::class, 'reversal'])->name('api.todopago.payment-reversal');
+
+// Admin benefits CRUD API
+Route::middleware(['auth'])->prefix('api/beneficios/admin')->name('api.benefits.')->group(function () {
+    Route::get('/', [BenefitController::class, 'adminIndex'])->name('admin-index');
+    Route::post('/', [BenefitController::class, 'store'])->name('store');
+    Route::match(['put', 'patch'], '/{benefit}', [BenefitController::class, 'update'])->name('update');
+    Route::delete('/{benefit}', [BenefitController::class, 'destroy'])->name('destroy');
+    Route::post('/{benefit}/toggle', [BenefitController::class, 'toggle'])->name('toggle');
+});
 
 // Admin promotions CRUD API
 Route::middleware(['auth'])->prefix('api/promociones')->name('api.promotions.')->group(function () {
@@ -96,7 +145,52 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
         ]);
     })->name('pos');
     Route::get('/carrito', fn () => Inertia::render('Rc/Cart'))->name('cart');
-    Route::get('/puntos', fn () => Inertia::render('Rc/Points'))->name('points');
+    Route::get('/puntos', function () {
+        $user = request()->user();
+
+        $totalEarned = (int) Order::query()->where('user_id', $user->id)->sum('points_earned');
+        $totalRedeemed = (int) Redemption::query()->where('user_id', $user->id)->sum('points_cost');
+
+        $recentRedemptions = Redemption::query()
+            ->where('user_id', $user->id)
+            ->with('benefit:id,title')
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get()
+            ->map(fn ($r) => [
+                'id' => 'red-'.$r->id,
+                'date' => $r->created_at->format('Y-m-d'),
+                'type' => 'Canje',
+                'points' => -$r->points_cost,
+                'description' => 'Canje: '.($r->benefit?->title ?? 'Beneficio'),
+            ]);
+
+        $recentOrders = Order::query()
+            ->where('user_id', $user->id)
+            ->where('points_earned', '>', 0)
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get()
+            ->map(fn ($o) => [
+                'id' => 'ord-'.$o->id,
+                'date' => $o->created_at->format('Y-m-d'),
+                'type' => 'Compra',
+                'points' => (int) $o->points_earned,
+                'description' => 'Compra: '.($o->order_number ?? 'Pedido #'.$o->id),
+            ]);
+
+        $history = collect([...$recentRedemptions, ...$recentOrders])
+            ->sortByDesc('date')
+            ->values()
+            ->all();
+
+        return Inertia::render('Rc/Points', [
+            'pointsBalance' => (int) $user->points_balance,
+            'totalEarned' => $totalEarned,
+            'totalRedeemed' => $totalRedeemed,
+            'history' => $history,
+        ]);
+    })->name('points');
     Route::get('/canjes', fn () => Inertia::render('Rc/Redeem'))->name('redeem');
     Route::get('/master-classes', fn () => Inertia::render('Rc/MasterClasses'))->name('masterclasses');
     Route::get('/inventario', function () {
@@ -113,6 +207,7 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
         return Inertia::render('Rc/Inventory', ['items' => $items]);
     })->name('inventory');
     Route::get('/promociones', fn () => Inertia::render('Rc/Promotions'))->name('promotions');
+    Route::get('/beneficios', fn () => Inertia::render('Rc/Benefits'))->name('benefits');
     Route::get('/reportes', [ReportController::class, 'index'])->name('reports');
     Route::get('/red-comercial', function () {
         $authUser = request()->user();
@@ -125,12 +220,15 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
             ->whereIn('role', [User::ROLE_LIDER, User::ROLE_SALON])
             ->when(! $isAdmin, fn ($q) => $q->where('leader_id', $authUser->id))
             ->with('leader:id,name,email')
+            ->with('zones:id,name')
             ->orderBy('status')
             ->orderBy('name')
             ->get(['id', 'name', 'email', 'role', 'leader_id', 'status', 'client_type', 'created_at']);
 
         $leaders = $isAdmin
-            ? User::query()->where('role', User::ROLE_LIDER)->where('status', User::STATUS_ACTIVE)->get(['id', 'name', 'email'])
+            ? User::query()->where('role', User::ROLE_LIDER)->where('status', User::STATUS_ACTIVE)
+                ->with('zones:id,name')
+                ->get(['id', 'name', 'email'])
             : collect();
 
         $pending = $canApprove
@@ -139,10 +237,15 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
                 ->get(['id', 'name', 'email', 'client_type', 'created_at'])
             : collect();
 
+        $allZones = $isAdmin
+            ? Zone::query()->orderBy('name')->get(['id', 'name'])
+            : collect();
+
         return Inertia::render('Rc/Network', [
             'users' => $users,
             'leaders' => $leaders,
             'pending' => $pending,
+            'allZones' => $allZones,
         ]);
     })->name('network');
 
@@ -178,6 +281,12 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
 
     Route::post('/imprimir-recibo', [PrintController::class, 'printReceipt'])->name('print.receipt');
     Route::post('/crear-payment', [PaymentController::class, 'createPaymentIntent'])->name('create-payment');
+
+    Route::get('/zonas', [ZoneController::class, 'index'])->name('zones.index');
+    Route::post('/zonas', [ZoneController::class, 'store'])->name('zones.store');
+    Route::match(['patch', 'post'], '/zonas/{id}', [ZoneController::class, 'update'])->name('zones.update');
+    Route::delete('/zonas/{id}', [ZoneController::class, 'destroy'])->name('zones.destroy');
+    Route::post('/zonas/{id}/asignar-lideres', [ZoneController::class, 'assignLeaders'])->name('zones.assign-leaders');
 });
 
 Route::middleware('auth')->group(function () {

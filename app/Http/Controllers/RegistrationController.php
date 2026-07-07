@@ -66,14 +66,23 @@ class RegistrationController extends Controller
 
         $user = User::query()->findOrFail($id);
 
-        $validated = $request->validate([
-            'client_type' => ['required', 'string', 'in:'.implode(',', User::CLIENT_TYPES)],
-        ]);
+        // `client_type` only applies to salon customers; leaders can be activated without it.
+        if ($user->role === User::ROLE_SALON) {
+            $validated = $request->validate([
+                'client_type' => ['required', 'string', 'in:'.implode(',', User::CLIENT_TYPES)],
+            ]);
 
-        $user->update([
-            'status' => User::STATUS_ACTIVE,
-            'client_type' => $validated['client_type'],
-        ]);
+            $user->update([
+                'status' => User::STATUS_ACTIVE,
+                'client_type' => $validated['client_type'],
+            ]);
+        } elseif ($user->role === User::ROLE_LIDER) {
+            $user->update([
+                'status' => User::STATUS_ACTIVE,
+            ]);
+        } else {
+            abort(422, 'Rol de usuario no soportado para aprobacion.');
+        }
 
         return redirect()->back()->with('success', "Usuario {$user->name} aprobado correctamente.");
     }

@@ -16,10 +16,8 @@ import {
     Typography,
 } from '@mui/material';
 import { Search } from '@mui/icons-material';
+import axios from 'axios';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-
-import { getLeaderEmail } from '@/rc/network';
-import { addPointsEvent, getPointsState } from '@/rc/points';
 
 interface Benefit {
     id: number;
@@ -32,11 +30,10 @@ interface Benefit {
 
 export default function RedeemPage() {
     const user = usePage().props.auth.user;
-    const leaderEmail = getLeaderEmail(user);
 
     const [benefits, setBenefits] = useState<Benefit[]>([]);
     const [loading, setLoading] = useState(true);
-    const [points, setPoints] = useState(() => getPointsState(leaderEmail));
+    const [balance, setBalance] = useState(user.points_balance ?? 0);
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
         open: false,
         message: '',
@@ -66,9 +63,8 @@ export default function RedeemPage() {
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/beneficios');
-            const data = await res.json();
-            setBenefits(Array.isArray(data) ? data : []);
+            const res = await axios.get('/api/beneficios');
+            setBenefits(Array.isArray(res.data) ? res.data : []);
         } catch {
             setBenefits([]);
         }
@@ -78,33 +74,24 @@ export default function RedeemPage() {
     useEffect(() => { load(); }, [load]);
 
     useEffect(() => {
-        const onChange = () => setPoints(getPointsState(leaderEmail));
+        const onChange = () => {
+            // Re-read user prop in case page was re-rendered with new data
+            setBalance((usePage().props.auth?.user as any)?.points_balance ?? 0);
+        };
         window.addEventListener('rc_points_changed', onChange);
         return () => window.removeEventListener('rc_points_changed', onChange);
-    }, [leaderEmail]);
+    }, []);
 
     const handleRedeem = async (b: Benefit) => {
         setRedeeming(b.id);
         try {
-            const res = await fetch('/api/beneficios/canjear', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '' },
-                body: JSON.stringify({ benefit_id: b.id, points_cost: b.points_cost }),
-            });
+            const res = await axios.post('/api/beneficios/canjear', { benefit_id: b.id, points_cost: b.points_cost });
 
-            if (!res.ok) {
-                const err = await res.json();
-                setSnackbar({ open: true, message: err.message ?? 'Error al canjear', severity: 'error' });
-                return;
+            if (res.data.new_balance !== undefined) {
+                setBalance(res.data.new_balance);
+            } else {
+                setBalance((prev) => prev - b.points_cost);
             }
-
-            const date = new Date().toISOString().slice(0, 10);
-            addPointsEvent(leaderEmail, {
-                date,
-                type: 'Canje',
-                points: -b.points_cost,
-                description: `Canje: ${b.title}`,
-            });
 
             setSnackbar({ open: true, message: 'Canje realizado con exito', severity: 'success' });
         } catch {
@@ -123,7 +110,7 @@ export default function RedeemPage() {
                     Catalogo de beneficios
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                    Balance actual: <b>{points.balance}</b> puntos
+                    Balance actual: <b>{balance}</b> puntos
                 </Typography>
             </Stack>
 
@@ -151,7 +138,7 @@ export default function RedeemPage() {
 
             <Grid container spacing={2.25}>
                 {filteredBenefits.map((b) => {
-                    const canRedeem = points.balance >= b.points_cost;
+                    const canRedeem = balance >= b.points_cost;
                     return (
                         <Grid key={b.id} item xs={12} sm={6} md={4} lg={3}>
                             <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

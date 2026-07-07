@@ -63,8 +63,8 @@ class ReportController extends Controller
             ->get();
 
         $monthlyRevenue = (clone $completedQuery)
-            ->select(DB::raw("strftime('%Y-%m', orders.created_at) as month"), DB::raw('SUM(orders.grand_total) as total'), DB::raw('COUNT(orders.id) as count'))
-            ->groupBy(DB::raw("strftime('%Y-%m', orders.created_at)"))
+            ->select(DB::raw("DATE_FORMAT(orders.created_at, '%Y-%m') as month"), DB::raw('SUM(orders.grand_total) as total'), DB::raw('COUNT(orders.id) as count'))
+            ->groupBy(DB::raw("DATE_FORMAT(orders.created_at, '%Y-%m')"))
             ->orderBy('month')
             ->get();
 

@@ -6,6 +6,7 @@ use App\Models\Article;
 use App\Models\InventoryMovement;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\TodoPagoClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +64,10 @@ class OrderController extends Controller
             'points_earned' => ['required', 'integer', 'min:0'],
             'payment_method' => ['nullable', 'string', 'max:30'],
             'stripe_payment_intent_id' => ['nullable', 'string', 'max:255'],
+            'todopago_transaccion_id' => ['nullable', 'string', 'max:50'],
+            'todopago_response_code' => ['nullable', 'string', 'max:20'],
+            'todopago_response_message' => ['nullable', 'string', 'max:255'],
+            'todopago_card_number_masked' => ['nullable', 'string', 'max:20'],
             'customer_name' => ['required', 'string', 'max:255'],
             'customer_email' => ['required', 'string', 'email', 'max:255'],
             'notes' => ['nullable', 'string'],
@@ -105,8 +110,12 @@ class OrderController extends Controller
                     'isv' => $validated['isv'],
                     'grand_total' => $validated['grand_total'],
                     'points_earned' => $validated['points_earned'],
-                    'payment_method' => $validated['payment_method'] ?? 'prototype',
+                    'payment_method' => $validated['payment_method'] ?? 'todopago',
                     'stripe_payment_intent_id' => $validated['stripe_payment_intent_id'] ?? null,
+                    'todopago_transaccion_id' => $validated['todopago_transaccion_id'] ?? null,
+                    'todopago_response_code' => $validated['todopago_response_code'] ?? null,
+                    'todopago_response_message' => $validated['todopago_response_message'] ?? null,
+                    'todopago_card_number_masked' => $validated['todopago_card_number_masked'] ?? null,
                     'customer_name' => $validated['customer_name'],
                     'customer_email' => $validated['customer_email'],
                     'notes' => $validated['notes'] ?? null,
@@ -150,6 +159,8 @@ class OrderController extends Controller
                     }
                 }
 
+                $authUser->increment('points_balance', $validated['points_earned']);
+
                 return $order->load(['user:id,name,email', 'salon:id,name,email']);
             });
 
@@ -161,14 +172,58 @@ class OrderController extends Controller
         }
     }
 
-    public function updateStatus(Request $request, int $id): RedirectResponse
+    public function updateStatus(Request $request, TodoPagoClient $todopago, int $id): RedirectResponse
     {
+        $user = $request->user();
+        $isAdmin = $user->role === User::ROLE_ADMIN;
+
         $validated = $request->validate([
             'status' => ['required', 'string', 'in:'.implode(',', Order::STATUSES)],
         ]);
 
         $order = Order::query()->findOrFail($id);
         $this->authorizeView($order);
+
+        // Only admin can cancel orders
+        if ($validated['status'] === Order::STATUS_CANCELLED && ! $isAdmin) {
+            abort(403, 'Solo el administrador puede cancelar pedidos.');
+        }
+
+        // Only allow cancellation when order is still packaging
+        if ($validated['status'] === Order::STATUS_CANCELLED && $order->status !== Order::STATUS_PACKAGING) {
+            return redirect()->back()->with('error',
+                'Solo se pueden cancelar pedidos con estado "en empaque".'
+            );
+        }
+
+        // Only admin can modify shipping/transport flow
+        if (! $isAdmin && in_array($validated['status'], [Order::STATUS_PACKAGING, Order::STATUS_IN_TRANSIT, Order::STATUS_DELIVERED])) {
+            abort(403, 'No tienes permiso para modificar el flujo de transporte.');
+        }
+
+        // If cancelling an order with a TodoPago transaction, reverse it
+        if ($validated['status'] === Order::STATUS_CANCELLED && $order->todopago_transaccion_id) {
+            try {
+                $revResp = $todopago->paymentReversal([
+                    'transactionID' => (int) $order->todopago_transaccion_id,
+                    'externalReference' => $order->order_number,
+                ], 'json');
+
+                $order->todopago_reversal_status = data_get($revResp, 'ok') ? 'reversed' : 'failed';
+                $order->todopago_reversal_response = json_encode($revResp);
+                $order->todopago_reversed_at = now();
+                $order->save();
+            } catch (\Throwable $e) {
+                $order->todopago_reversal_status = 'error';
+                $order->todopago_reversal_response = $e->getMessage();
+                $order->todopago_reversed_at = now();
+                $order->save();
+
+                return redirect()->back()->with('error',
+                    'Pedido cancelado pero falló la reversión en TodoPago: '.$e->getMessage()
+                );
+            }
+        }
 
         $order->update(['status' => $validated['status']]);
 

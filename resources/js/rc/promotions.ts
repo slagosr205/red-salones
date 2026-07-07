@@ -97,6 +97,7 @@ export async function createPromotion(data: {
   startDate: string;
   endDate: string;
   active: boolean;
+  target_role?: string;
   article_ids: number[];
 }): Promise<Promotion> {
   const res = await axios.post('/api/promociones', {
@@ -106,6 +107,7 @@ export async function createPromotion(data: {
     start_date: data.startDate,
     end_date: data.endDate,
     active: data.active,
+    target_role: data.target_role || null,
     article_ids: data.article_ids,
   });
   return res.data;
@@ -120,6 +122,7 @@ export async function updatePromotion(
     startDate: string;
     endDate: string;
     active: boolean;
+    target_role?: string;
     article_ids: number[];
   },
 ): Promise<Promotion> {
@@ -130,6 +133,7 @@ export async function updatePromotion(
     start_date: data.startDate,
     end_date: data.endDate,
     active: data.active,
+    target_role: data.target_role || null,
     article_ids: data.article_ids,
   });
   return res.data;

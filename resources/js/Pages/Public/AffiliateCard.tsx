@@ -2,11 +2,13 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import {
     Box,
     Button,
+    Card,
+    CardContent,
     Container,
     Stack,
     Typography,
 } from '@mui/material';
-import { Print } from '@mui/icons-material';
+import { InfoOutlined, Print } from '@mui/icons-material';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 
@@ -456,6 +458,22 @@ export default function AffiliateCard() {
                                 )}
                             </Box>
                         </Box>
+
+                        <Card sx={{ maxWidth: 460, bgcolor: 'primary.main', color: 'primary.contrastText' }}>
+                            <CardContent>
+                                <Stack direction="row" spacing={1.5} alignItems="center">
+                                    <InfoOutlined />
+                                    <Box>
+                                        <Typography variant="body2" sx={{ fontWeight: 700, opacity: 0.9 }}>
+                                            Como gana una afiliada
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ opacity: 0.8, display: 'block' }}>
+                                            Acumula puntos con cada compra que realices o que realicen tus clientes. Canjea tus puntos por beneficios exclusivos. Mientras mas compras, mas puntos acumulas.
+                                        </Typography>
+                                    </Box>
+                                </Stack>
+                            </CardContent>
+                        </Card>
 
                         <Stack
                             direction="row"

@@ -26,6 +26,7 @@ import {
 } from 'recharts';
 
 import { LocalShipping } from '@mui/icons-material';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { RcRole } from '@/rc/role';
 
@@ -76,12 +77,175 @@ export default function Dashboard() {
     const recentUsers = (usePage().props as any).recentUsers as RecentUser[];
     const recentOrders = (usePage().props as any).recentOrders as RecentOrder[] | undefined;
     const salonesSinLider = (usePage().props as any).salonesSinLider as number;
+    const benefits = (usePage().props as any).benefits as Array<{
+        id: number;
+        title: string;
+        kind: string;
+        pointsCost: number;
+        description: string | null;
+        imagePath: string | null;
+        targetRole: string | null;
+    }> | undefined;
+
+    const [slideIndex, setSlideIndex] = useState(0);
+    const autoSlideRef = useRef<ReturnType<typeof setInterval>>();
+
+    const startAutoSlide = useCallback(() => {
+        if (autoSlideRef.current) clearInterval(autoSlideRef.current);
+        if (!benefits || benefits.length <= 1) return;
+        autoSlideRef.current = setInterval(() => {
+            setSlideIndex((prev) => (prev + 1) % (benefits?.length ?? 1));
+        }, 2000);
+    }, [benefits]);
+
+    useEffect(() => {
+        startAutoSlide();
+        return () => { if (autoSlideRef.current) clearInterval(autoSlideRef.current); };
+    }, [startAutoSlide]);
+
+    const goToSlide = (i: number) => {
+        setSlideIndex(i);
+        startAutoSlide();
+    };
+
+    const activeBenefits = benefits?.filter((b) => b.imagePath) ?? [];
 
     return (
         <AuthenticatedLayout header="Dashboard">
             <Head title="Dashboard" />
 
             <Stack spacing={3}>
+                {!isAdmin && activeBenefits.length > 0 && (
+                    <Box
+                        sx={{
+                            position: 'relative',
+                            width: '100%',
+                            height: 280,
+                            borderRadius: 3,
+                            overflow: 'hidden',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+                        }}
+                    >
+                        {activeBenefits.map((b, i) => (
+                            <Box
+                                key={b.id}
+                                sx={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    opacity: i === slideIndex ? 1 : 0,
+                                    transition: 'opacity 800ms cubic-bezier(0.4, 0, 0.2, 1), transform 800ms cubic-bezier(0.4, 0, 0.2, 1)',
+                                    transform: i === slideIndex ? 'scale(1)' : 'scale(1.05)',
+                                    '&::after': {
+                                        content: '""',
+                                        position: 'absolute',
+                                        inset: 0,
+                                        background: 'linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.1) 100%)',
+                                    },
+                                }}
+                            >
+                                <Box
+                                    component="img"
+                                    src={b.imagePath!}
+                                    alt={b.title}
+                                    sx={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'cover',
+                                        display: 'block',
+                                    }}
+                                />
+                                <Box
+                                    sx={{
+                                        position: 'absolute',
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        p: 4,
+                                        zIndex: 2,
+                                    }}
+                                >
+                                    <Chip
+                                        size="small"
+                                        label={b.kind}
+                                        sx={{
+                                            mb: 1.5,
+                                            bgcolor: 'rgba(255,255,255,0.2)',
+                                            backdropFilter: 'blur(8px)',
+                                            color: 'common.white',
+                                            fontWeight: 700,
+                                            fontSize: 11,
+                                            border: '1px solid rgba(255,255,255,0.3)',
+                                        }}
+                                    />
+                                    <Typography
+                                        variant="h4"
+                                        sx={{
+                                            fontWeight: 900,
+                                            color: 'common.white',
+                                            textShadow: '0 2px 20px rgba(0,0,0,0.3)',
+                                            mb: 0.5,
+                                        }}
+                                    >
+                                        {b.title}
+                                    </Typography>
+                                    <Typography
+                                        variant="body1"
+                                        sx={{
+                                            color: 'rgba(255,255,255,0.85)',
+                                            maxWidth: 600,
+                                            textShadow: '0 1px 10px rgba(0,0,0,0.2)',
+                                            mb: 1,
+                                        }}
+                                    >
+                                        {b.description}
+                                    </Typography>
+                                    <Chip
+                                        size="small"
+                                        label={`${b.pointsCost} puntos`}
+                                        sx={{
+                                            bgcolor: 'primary.main',
+                                            color: 'common.white',
+                                            fontWeight: 800,
+                                            fontSize: 12,
+                                        }}
+                                    />
+                                </Box>
+                            </Box>
+                        ))}
+                        {activeBenefits.length > 1 && (
+                            <Stack
+                                direction="row"
+                                spacing={1}
+                                sx={{
+                                    position: 'absolute',
+                                    bottom: 2,
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    zIndex: 3,
+                                }}
+                            >
+                                {activeBenefits.map((_, i) => (
+                                    <Box
+                                        key={i}
+                                        onClick={() => goToSlide(i)}
+                                        sx={{
+                                            width: i === slideIndex ? 28 : 10,
+                                            height: 10,
+                                            borderRadius: 5,
+                                            bgcolor: i === slideIndex ? 'primary.main' : 'rgba(255,255,255,0.4)',
+                                            cursor: 'pointer',
+                                            transition: 'all 400ms ease',
+                                            '&:hover': {
+                                                bgcolor: i === slideIndex ? 'primary.light' : 'rgba(255,255,255,0.7)',
+                                            },
+                                        }}
+                                    />
+                                ))}
+                            </Stack>
+                        )}
+                    </Box>
+                )}
+
                 <Stack direction="row" spacing={2.5} flexWrap="wrap" useFlexGap>
                     {kpis.map((kpi) => (
                         <Card key={kpi.label} sx={{ flex: '1 1 180px', minWidth: 160 }}>

@@ -40,4 +40,22 @@ return [
         'secret' => env('STRIPE_SECRET'),
     ],
 
+    'todopago' => [
+        'base_url' => env('TODOPAGO_BASE_URL', 'https://test-api.todopago.hn'),
+        'login_path' => env('TODOPAGO_LOGIN_PATH', '/login'),
+        'payment_path' => env('TODOPAGO_PAYMENT_PATH', '/pay/v1/payment'),
+        'account_list_path' => env('TODOPAGO_ACCOUNT_LIST_PATH', '/pay/v1/account-list'),
+        'customer_register_path' => env('TODOPAGO_CUSTOMER_REGISTER_PATH', '/pay/v1/customer-register'),
+        'account_register_path' => env('TODOPAGO_ACCOUNT_REGISTER_PATH', '/pay/v1/account-register'),
+        'direct_payment_path' => env('TODOPAGO_DIRECT_PAYMENT_PATH', '/pay/v1/direct-payment-without-register'),
+        'payment_reversal_path' => env('TODOPAGO_PAYMENT_REVERSAL_PATH', '/pay/v1/payment-reversal'),
+        'user' => env('TODOPAGO_USER'),
+        'password' => env('TODOPAGO_PASSWORD'),
+        'user_type' => env('TODOPAGO_USER_TYPE', '2'),
+        'version' => env('TODOPAGO_VERSION', ''),
+        'commerce_id' => env('TODOPAGO_COMMERCE_ID'),
+        'tenant' => env('TODOPAGO_TENANT'),
+        'terminal' => env('TODOPAGO_TERMINAL'),
+    ],
+
 ];

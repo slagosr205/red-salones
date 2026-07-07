@@ -1,40 +1,65 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, usePage } from '@inertiajs/react';
-import { Box, Card, CardContent, Grid, InputAdornment, LinearProgress, Stack, TextField, Typography } from '@mui/material';
-import { Search, TrendingDown, TrendingUp, AccountBalanceWallet } from '@mui/icons-material';
+import { Box, Card, CardContent, Chip, Grid, InputAdornment, LinearProgress, Stack, TextField, Typography } from '@mui/material';
+import { Search, TrendingDown, TrendingUp, AccountBalanceWallet, InfoOutlined } from '@mui/icons-material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { getLeaderEmail } from '@/rc/network';
-import { getPointsState, type PointsEvent } from '@/rc/points';
+interface HistoryEvent {
+    id: string;
+    date: string;
+    type: 'Compra' | 'Canje';
+    points: number;
+    description: string;
+}
+
+interface Benefit {
+    id: number;
+    title: string;
+    kind: string;
+    points_cost: number;
+    description: string | null;
+    image_path: string | null;
+}
 
 export default function PointsPage() {
-    const user = usePage().props.auth.user;
-    const leaderEmail = getLeaderEmail(user);
+    const { pointsBalance, totalEarned, totalRedeemed, history } = (usePage().props as any) as {
+        pointsBalance: number;
+        totalEarned: number;
+        totalRedeemed: number;
+        history: HistoryEvent[];
+    };
 
-    const [state, setState] = useState(() => getPointsState(leaderEmail));
+    const [benefits, setBenefits] = useState<Benefit[]>([]);
+    const [loadingBenefits, setLoadingBenefits] = useState(true);
 
-    useEffect(() => {
-        const onChange = () => setState(getPointsState(leaderEmail));
-        window.addEventListener('rc_points_changed', onChange);
-        return () => window.removeEventListener('rc_points_changed', onChange);
-    }, [leaderEmail]);
+    const loadBenefits = useCallback(async () => {
+        try {
+            const res = await fetch('/api/beneficios');
+            const data = await res.json();
+            setBenefits(Array.isArray(data) ? data : []);
+        } catch {
+            setBenefits([]);
+        }
+        setLoadingBenefits(false);
+    }, []);
 
-    const target = 3000;
-    const progress = Math.min(100, (state.balance / target) * 100);
+    useEffect(() => { loadBenefits(); }, [loadBenefits]);
 
-    const totalEarned = useMemo(
-        () => state.history.filter((e) => e.type === 'Compra').reduce((s, e) => s + e.points, 0),
-        [state.history],
-    );
-    const totalRedeemed = useMemo(
-        () => state.history.filter((e) => e.type === 'Canje').reduce((s, e) => s + Math.abs(e.points), 0),
-        [state.history],
-    );
+    const nextBenefit = useMemo(() => {
+        if (benefits.length === 0) return null;
+        const sorted = [...benefits].sort((a, b) => a.points_cost - b.points_cost);
+        const firstUnreached = sorted.find((b) => b.points_cost > pointsBalance);
+        return firstUnreached ?? sorted[0];
+    }, [benefits, pointsBalance]);
 
+    const target = nextBenefit?.points_cost ?? 3000;
+    const progress = Math.min(100, (pointsBalance / target) * 100);
+    const remaining = Math.max(0, target - pointsBalance);
+    const reached = pointsBalance >= target;
     const [search, setSearch] = useState('');
 
-    function scorePointsEvent(query: string, e: PointsEvent): number {
+    function scorePointsEvent(query: string, e: HistoryEvent): number {
         const q = query.trim().toLowerCase();
         if (!q) return 1;
         const type = e.type?.toLowerCase() ?? '';
@@ -46,11 +71,11 @@ export default function PointsPage() {
     }
 
     const filteredHistory = useMemo(() => {
-        if (!search.trim()) return state.history;
-        return state.history.filter((e) => scorePointsEvent(search, e) > 0);
-    }, [state.history, search]);
+        if (!search.trim()) return history;
+        return history.filter((e: HistoryEvent) => scorePointsEvent(search, e) > 0);
+    }, [history, search]);
 
-    const columns = useMemo<GridColDef<PointsEvent>[]>(
+    const columns = useMemo<GridColDef<HistoryEvent>[]>(
         () => [
             { field: 'date', headerName: 'Fecha', flex: 1, minWidth: 110 },
             { field: 'type', headerName: 'Tipo', flex: 1, minWidth: 120 },
@@ -71,6 +96,22 @@ export default function PointsPage() {
             <Head title="Puntos" />
 
             <Stack spacing={2.5}>
+                <Card sx={{ bgcolor: 'primary.main', color: 'primary.contrastText' }}>
+                    <CardContent>
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                            <InfoOutlined />
+                            <Box>
+                                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                                    Como gana una afiliada
+                                </Typography>
+                                <Typography variant="body2" sx={{ opacity: 0.8, fontSize: 13 }}>
+                                    Acumula puntos con cada compra que realices o que realicen tus clientes. Canjea tus puntos por beneficios exclusivos. Mientras mas compras, mas puntos acumulas.
+                                </Typography>
+                            </Box>
+                        </Stack>
+                    </CardContent>
+                </Card>
+
                 <Card>
                     <CardContent>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
@@ -79,12 +120,12 @@ export default function PointsPage() {
                                     Balance actual
                                 </Typography>
                                 <Typography variant="h4" sx={{ fontWeight: 900 }}>
-                                    {state.balance} puntos
+                                    {pointsBalance} puntos
                                 </Typography>
                                 <Box sx={{ mt: 1.25 }}>
                                     <LinearProgress variant="determinate" value={progress} />
                                     <Typography variant="caption" color="text.secondary">
-                                        Nivel Plata: {state.balance} / {target}
+                                        {nextBenefit ? `${nextBenefit.title}: ${pointsBalance} / ${target}` : `${pointsBalance} / ${target}`}
                                     </Typography>
                                 </Box>
                             </Box>
@@ -98,10 +139,38 @@ export default function PointsPage() {
                                     minWidth: { sm: 260 },
                                 }}
                             >
-                                <Typography sx={{ fontWeight: 900 }}>Proximo beneficio</Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    Faltan {Math.max(0, target - state.balance)} puntos para alcanzar la meta.
-                                </Typography>
+                                {loadingBenefits ? (
+                                    <Typography variant="body2" color="text.secondary">Cargando...</Typography>
+                                ) : nextBenefit ? (
+                                    <>
+                                        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
+                                            <Typography sx={{ fontWeight: 900 }}>Proximo beneficio</Typography>
+                                            {reached && <Chip size="small" label="Alcanzado" color="success" />}
+                                        </Stack>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                                            {nextBenefit.title}
+                                        </Typography>
+                                        {reached ? (
+                                            <Typography variant="body2" color="success.main" sx={{ fontWeight: 700 }}>
+                                                Te sobran {pointsBalance - target} puntos — puedes canjearlo
+                                            </Typography>
+                                        ) : (
+                                            <Typography variant="body2" color="text.secondary">
+                                                Faltan {remaining} puntos para alcanzar la meta.
+                                            </Typography>
+                                        )}
+                                        <Typography variant="caption" color="text.secondary">
+                                            {nextBenefit.points_cost} puntos — {nextBenefit.kind}
+                                        </Typography>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Typography sx={{ fontWeight: 900 }}>Proximo beneficio</Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            No hay beneficios disponibles.
+                                        </Typography>
+                                    </>
+                                )}
                             </Box>
                         </Stack>
                     </CardContent>
@@ -152,7 +221,7 @@ export default function PointsPage() {
                                             Balance disponible
                                         </Typography>
                                         <Typography variant="h5" sx={{ fontWeight: 900 }}>
-                                            {state.balance}
+                                            {pointsBalance}
                                         </Typography>
                                     </Box>
                                 </Stack>

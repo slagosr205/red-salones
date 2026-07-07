@@ -1,5 +1,3 @@
-import { Elements } from '@stripe/react-stripe-js';
-import { loadStripe } from '@stripe/stripe-js';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
@@ -25,14 +23,12 @@ import {
 import { CreditCard, Delete } from '@mui/icons-material';
 import { useEffect, useMemo, useState } from 'react';
 
-import PaymentDialog from '@/Components/PaymentDialog';
+import TodoPagoPaymentDialog from '@/Components/TodoPagoPaymentDialog';
 import ReceiptDialog from '@/Components/ReceiptDialog';
 import { clearCart, getCart, removeFromCart, updateQty } from '@/rc/cart';
 import { getDiscountForProduct, getPromotionsForProduct, refreshActivePromotions } from '@/rc/promotions';
 import { products as mockProducts } from '@/rc/mock';
-import { getLeaderEmail } from '@/rc/network';
 import { addNotification } from '@/rc/notifications';
-import { addPointsEvent } from '@/rc/points';
 import { getReceiptConfig } from '@/rc/receipt';
 import type { RcRole } from '@/rc/role';
 
@@ -61,8 +57,6 @@ export default function CartPage() {
     const userId = user.id;
     const userRole: RcRole = user.role ?? 'salon';
     const userClientType = user.client_type;
-
-    const stripePromise = useMemo(() => loadStripe(import.meta.env.VITE_STRIPE_KEY ?? ''), []);
 
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [paymentOpen, setPaymentOpen] = useState(false);
@@ -125,11 +119,10 @@ export default function CartPage() {
     const pointsEarned = rows.reduce((acc, r) => acc + r.points, 0);
     const salon = salones.find((s) => s.id === selectedSalon);
 
-    const finalizePurchase = async () => {
+    const finalizePurchase = async (transaccionId?: number, cardMasked?: string) => {
         setPurchasing(true);
 
         const date = new Date().toISOString().slice(0, 10);
-        const leaderEmail = getLeaderEmail(user);
         const desc = userRole === 'lider' && salon
             ? `Compra de Lider para ${salon.name}`
             : 'Compra (prototipo)';
@@ -155,7 +148,9 @@ export default function CartPage() {
                 points_earned: pointsEarned,
                 customer_name: user.name,
                 customer_email: user.email,
-                payment_method: 'prototype',
+                payment_method: 'todopago',
+                todopago_transaccion_id: transaccionId ? String(transaccionId) : null,
+                todopago_card_number_masked: cardMasked ?? null,
             });
         } catch {
             addNotification(userId, 'Error al crear el pedido. Los datos locales se guardaron igualmente.');
@@ -172,12 +167,6 @@ export default function CartPage() {
             })),
         );
 
-        addPointsEvent(leaderEmail, {
-            date,
-            type: 'Compra',
-            points: pointsEarned,
-            description: desc,
-        });
         addNotification(userId, `Compra confirmada: ${desc} - L ${subtotal.toFixed(2)}`);
         clearCart();
         setConfirmOpen(false);
@@ -385,7 +374,7 @@ export default function CartPage() {
                         <Button fullWidth variant="outlined" startIcon={<CreditCard />} onClick={() => { setConfirmOpen(false); setPaymentOpen(true); }}>
                             Pagar con tarjeta
                         </Button>
-                        <Button fullWidth variant="contained" disabled={purchasing} onClick={finalizePurchase}>
+                        <Button fullWidth variant="contained" disabled={purchasing} onClick={() => finalizePurchase()}>
                             {purchasing ? 'Procesando...' : 'Confirmar (prototipo)'}
                         </Button>
                     </Stack>
@@ -401,17 +390,15 @@ export default function CartPage() {
                 date={new Date().toISOString().slice(0, 10)}
             />
 
-            <Elements stripe={stripePromise}>
-                <PaymentDialog
-                    open={paymentOpen}
-                    onClose={() => setPaymentOpen(false)}
-                    amount={grandTotal}
-                    currency="hnl"
-                    customerName={userRole === 'lider' && salon ? salon.name : user.name}
-                    customerEmail={userRole === 'lider' && salon ? salon.email : user.email}
-                    onPaymentSuccess={finalizePurchase}
-                />
-            </Elements>
+            <TodoPagoPaymentDialog
+                open={paymentOpen}
+                onClose={() => setPaymentOpen(false)}
+                amount={grandTotal}
+                currency="hnl"
+                customerName={userRole === 'lider' && salon ? salon.name : user.name}
+                customerEmail={userRole === 'lider' && salon ? salon.email : user.email}
+                onPaymentSuccess={(transaccionId: number, cardMasked?: string) => finalizePurchase(transaccionId, cardMasked)}
+            />
 
             <Dialog open={!!imageModal} onClose={() => setImageModal('')}>
                 {imageModal && (

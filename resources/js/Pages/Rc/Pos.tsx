@@ -24,8 +24,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { refreshActivePromotions, getDiscountForProduct, getPromotionsForProduct, type Promotion } from '@/rc/promotions';
 import { addNotification } from '@/rc/notifications';
-import { addPointsEvent } from '@/rc/points';
-import { getLeaderEmail } from '@/rc/network';
 
 type Customer = {
     id: number;
@@ -204,7 +202,6 @@ export default function PosPage() {
 
     const handleCheckout = async () => {
         setPurchasing(true);
-        const date = new Date().toISOString().slice(0, 10);
         const customerName = customer?.name ?? 'Mostrador';
         const desc = `Venta POS - ${customerName}`;
 
@@ -251,13 +248,6 @@ export default function PosPage() {
             })),
         );
 
-        const leaderEmail = getLeaderEmail(customer?.id ? customer : auth?.user);
-        addPointsEvent(leaderEmail, {
-            date,
-            type: 'Compra',
-            points: pointsEarned,
-            description: desc,
-        });
         addNotification(userId, `Venta POS confirmada: ${desc} - L ${subtotal.toFixed(2)}`);
         setCart([]);
         setAmountReceived('');

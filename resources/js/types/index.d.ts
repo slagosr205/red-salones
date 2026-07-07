@@ -7,6 +7,17 @@ export interface User {
     leader_id?: number | null;
     leader?: { id: number; name: string; email: string } | null;
     email_verified_at?: string;
+    points_balance?: number;
+}
+
+export interface Zone {
+    id: number;
+    name: string;
+    description: string | null;
+    created_by: number;
+    leaders?: { id: number; name: string; email: string }[];
+    leaders_count?: number;
+    created_at: string;
 }
 
 export type PageProps<

@@ -63,6 +63,7 @@ const emptyForm = () => ({
     startDate: new Date().toISOString().slice(0, 10),
     endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     active: true,
+    target_role: '' as string,
     article_ids: [] as number[],
 });
 
@@ -132,6 +133,7 @@ export default function PromotionsPage() {
             startDate: p.startDate,
             endDate: p.endDate,
             active: p.active,
+            target_role: (p as any).targetRole ?? '',
             article_ids: p.productIds.map(artIdToNumeric),
         });
         setDialogOpen(true);
@@ -210,6 +212,17 @@ export default function PromotionsPage() {
                 headerName: 'Fin',
                 flex: 1,
                 minWidth: 100,
+            },
+            {
+                field: 'targetRole',
+                headerName: 'Dirigido a',
+                flex: 0.8,
+                minWidth: 120,
+                renderCell: (params) => {
+                    const labels: Record<string, string> = { lider: 'Lider', salon: 'Salon', consumidor_final: 'Consumidor Final' };
+                    const val = params.value as string;
+                    return <Chip size="small" label={val ? labels[val] ?? val : 'Todos'} variant="outlined" />;
+                },
             },
             {
                 field: 'active',
@@ -372,6 +385,19 @@ export default function PromotionsPage() {
                                 <MenuItem value="descuento">Descuento %</MenuItem>
                                 <MenuItem value="2x1">2x1</MenuItem>
                                 <MenuItem value="combo">Combo %</MenuItem>
+                            </Select>
+                        </FormControl>
+                        <FormControl size="small">
+                            <InputLabel>Dirigido a</InputLabel>
+                            <Select
+                                value={form.target_role}
+                                label="Dirigido a"
+                                onChange={(e) => setForm({ ...form, target_role: e.target.value })}
+                            >
+                                <MenuItem value="">Todos</MenuItem>
+                                <MenuItem value="lider">Lider</MenuItem>
+                                <MenuItem value="salon">Salon</MenuItem>
+                                <MenuItem value="consumidor_final">Consumidor Final</MenuItem>
                             </Select>
                         </FormControl>
                         {form.type !== '2x1' && (

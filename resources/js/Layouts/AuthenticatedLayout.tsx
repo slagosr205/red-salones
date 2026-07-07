@@ -54,6 +54,7 @@ const routeMap: Record<string, string> = {
     'rc.cart': '/rc/carrito',
     'rc.points': '/rc/puntos',
     'rc.redeem': '/rc/canjes',
+    'rc.benefits': '/rc/beneficios',
     'rc.promotions': '/rc/promociones',
     'rc.network': '/rc/red-comercial',
     'rc.orders': '/rc/pedidos',
@@ -65,6 +66,7 @@ const routeMap: Record<string, string> = {
     'rc.bulk-upload': '/rc/carga-masiva',
     'rc.settings': '/rc/configuracion',
     'rc.pos': '/rc/pos',
+    'rc.zones': '/rc/zonas',
 };
 
 function useNav(role: RcRole): NavItem[] {
@@ -133,6 +135,13 @@ function useNav(role: RcRole): NavItem[] {
                 href: '/rc/pos',
                 icon: <Storefront fontSize="small" />,
                 active: isActive('rc.pos'),
+            });
+            items.push({
+                key: 'benefits',
+                label: 'Beneficios',
+                href: '/rc/beneficios',
+                icon: <WorkspacePremium fontSize="small" />,
+                active: isActive('rc.benefits'),
             });
             items.push({
                 key: 'promotions',
@@ -204,6 +213,13 @@ function useNav(role: RcRole): NavItem[] {
         }
 
         if (role === 'admin') {
+            items.push({
+                key: 'zones',
+                label: 'Zonas',
+                href: '/rc/zonas',
+                icon: <Groups fontSize="small" />,
+                active: isActive('rc.zones'),
+            });
             items.push({
                 key: 'settings',
                 label: 'Configuracion',

@@ -7,14 +7,18 @@ import {
     Card,
     CardContent,
     Chip,
+    FormControl,
     InputAdornment,
+    InputLabel,
+    MenuItem,
+    Select,
     Stack,
     TextField,
     Typography,
 } from '@mui/material';
 import { CheckCircle, Cancel, Badge as BadgeIcon, Search } from '@mui/icons-material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { RcRole } from '@/rc/role';
 import type { MemberData } from '@/Pages/Rc/AffiliateCardModal';
@@ -28,12 +32,14 @@ type NetworkRow = {
     client_type: string | null;
     leader: string;
     leader_id: number | null;
+    zones: { id: number; name: string }[];
     status: 'Activo' | 'Pendiente';
     created_at: string;
 };
 
-type Leader = { id: number; name: string; email: string };
+type Leader = { id: number; name: string; email: string; zones?: { id: number; name: string }[] };
 type PendingUser = { id: number; name: string; email: string; client_type: string | null; created_at: string };
+type ZoneOption = { id: number; name: string };
 
 export default function NetworkPage() {
     const user = usePage().props.auth.user;
@@ -41,6 +47,7 @@ export default function NetworkPage() {
     const dbUsers = (usePage().props as any).users as any[];
     const dbLeaders = (usePage().props as any).leaders as Leader[];
     const dbPending = (usePage().props as any).pending as PendingUser[];
+    const allZones = (usePage().props as any).allZones as ZoneOption[] | undefined;
 
     const canCreate = role === 'admin' || role === 'lider';
     const canApprove = role === 'admin' || role === 'lider';
@@ -50,6 +57,13 @@ export default function NetworkPage() {
         open: false,
         userId: 0,
         currentLeaderId: null,
+    });
+
+    const [approveDialog, setApproveDialog] = useState<{ open: boolean; userId: number; name: string; role: 'Salon' | 'Lider' }>({
+        open: false,
+        userId: 0,
+        name: '',
+        role: 'Salon',
     });
 
     const [carnetUser, setCarnetUser] = useState<NetworkRow | null>(null);
@@ -63,12 +77,14 @@ export default function NetworkPage() {
         const role = r.role?.toLowerCase() ?? '';
         const leader = r.leader?.toLowerCase() ?? '';
         const status = r.status?.toLowerCase() ?? '';
+        const zones = r.zones?.map((z) => z.name.toLowerCase()).join(' ') ?? '';
         if (name === q || name.startsWith(q)) return 100;
         if (name.includes(q)) return 90;
         if (email.includes(q)) return 80;
         if (leader.includes(q)) return 70;
         if (role.includes(q)) return 60;
         if (status.includes(q)) return 50;
+        if (zones.includes(q)) return 45;
         return 0;
     }
 
@@ -83,6 +99,7 @@ export default function NetworkPage() {
                 client_type: u.client_type ?? null,
                 leader: u.leader ? u.leader.name : '-',
                 leader_id: u.leader_id,
+                zones: u.zones ?? [],
                 status: u.status === 'active' ? 'Activo' as const : 'Pendiente' as const,
                 created_at: u.created_at,
             }))
@@ -136,6 +153,22 @@ export default function NetworkPage() {
                 ),
             },
             {
+                field: 'zones',
+                headerName: 'Zonas',
+                flex: 1.5,
+                minWidth: 180,
+                renderCell: (params) => (
+                    <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', py: 0.5 }}>
+                        {params.value && params.value.length > 0
+                            ? params.value.map((z: { id: number; name: string }) => (
+                                <Chip key={z.id} size="small" label={z.name} variant="outlined" color="info" />
+                            ))
+                            : <Typography variant="body2" color="text.secondary">—</Typography>
+                        }
+                    </Stack>
+                ),
+            },
+            {
                 field: 'status',
                 headerName: 'Estado',
                 flex: 1,
@@ -160,15 +193,22 @@ export default function NetworkPage() {
                               <Stack direction="row" spacing={0.5}>
                                   {params.row.status === 'Pendiente' ? (
                                       <>
-                                          <Button
-                                              size="small"
-                                              variant="contained"
-                                              color="success"
-                                              startIcon={<CheckCircle />}
-                                              onClick={() => router.post(route('rc.approve', params.row.id))}
-                                          >
-                                              Aprobar
-                                          </Button>
+                                           <Button
+                                               size="small"
+                                               variant="contained"
+                                               color="success"
+                                               startIcon={<CheckCircle />}
+                                               onClick={() =>
+                                                   setApproveDialog({
+                                                       open: true,
+                                                       userId: params.row.id,
+                                                       name: params.row.name,
+                                                       role: params.row.role,
+                                                   })
+                                               }
+                                            >
+                                                Aprobar
+                                            </Button>
                                           <Button
                                               size="small"
                                               variant="outlined"
@@ -241,7 +281,14 @@ export default function NetworkPage() {
                                                 variant="contained"
                                                 color="success"
                                                 startIcon={<CheckCircle />}
-                                                onClick={() => router.post(route('rc.approve', u.id))}
+                                                onClick={() =>
+                                                    setApproveDialog({
+                                                        open: true,
+                                                        userId: u.id,
+                                                        name: u.name,
+                                                        role: 'Salon',
+                                                    })
+                                                }
                                             >
                                                 Aprobar
                                             </Button>
@@ -329,6 +376,16 @@ export default function NetworkPage() {
                 />
             )}
 
+            {canApprove && (
+                <ApproveDialog
+                    open={approveDialog.open}
+                    userId={approveDialog.userId}
+                    userName={approveDialog.name}
+                    userRole={approveDialog.role}
+                    onClose={() => setApproveDialog({ open: false, userId: 0, name: '', role: 'Salon' })}
+                />
+            )}
+
             {carnetUser && (
                 <AffiliateCardModal
                     open={!!carnetUser}
@@ -404,6 +461,91 @@ function LeaderAssignDialog({
                             }}
                         >
                             Guardar
+                        </Button>
+                    </Stack>
+                </CardContent>
+            </Card>
+        </Box>
+    );
+}
+
+function ApproveDialog({
+    open,
+    userId,
+    userName,
+    userRole,
+    onClose,
+}: {
+    open: boolean;
+    userId: number;
+    userName: string;
+    userRole: 'Salon' | 'Lider';
+    onClose: () => void;
+}) {
+    const [clientType, setClientType] = useState('');
+
+    useEffect(() => {
+        if (open) setClientType('');
+    }, [open, userId]);
+
+    if (!open) return null;
+
+    return (
+        <Box
+            sx={{
+                position: 'fixed',
+                inset: 0,
+                display: 'grid',
+                placeItems: 'center',
+                zIndex: 1300,
+                bgcolor: 'rgba(0,0,0,0.5)',
+            }}
+            onClick={onClose}
+        >
+            <Card sx={{ width: 420, p: 2 }} onClick={(e) => e.stopPropagation()}>
+                <CardContent>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
+                        Aprobar usuario
+                    </Typography>
+
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        {userName}
+                    </Typography>
+
+                    {userRole === 'Salon' ? (
+                        <FormControl size="small" fullWidth>
+                            <InputLabel>Tipo de cliente</InputLabel>
+                            <Select
+                                value={clientType}
+                                label="Tipo de cliente"
+                                onChange={(e) => setClientType(e.target.value)}
+                            >
+                                <MenuItem value="salon">Salón</MenuItem>
+                                <MenuItem value="consumidor_final">Consumidor Final</MenuItem>
+                            </Select>
+                        </FormControl>
+                    ) : (
+                        <Typography variant="body2" color="text.secondary">
+                            Este usuario es lider. Se activara sin tipo de cliente.
+                        </Typography>
+                    )}
+
+                    <Stack direction="row" spacing={1} sx={{ mt: 2, justifyContent: 'flex-end' }}>
+                        <Button variant="outlined" onClick={onClose}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            variant="contained"
+                            color="success"
+                            onClick={() => {
+                                router.post(
+                                    route('rc.approve', userId),
+                                    userRole === 'Salon' ? { client_type: clientType } : {},
+                                    { onSuccess: () => onClose() },
+                                );
+                            }}
+                        >
+                            Aprobar
                         </Button>
                     </Stack>
                 </CardContent>

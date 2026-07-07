@@ -4,13 +4,13 @@
 
  Todos los usuarios comparten la contrasena: Password123!
 
--------------------------------------------------------
-  ROL          | EMAIL                | CONTRASENA
--------------------------------------------------------
-  Admin        | admin@salon.test     | Password123!
-  Lider        | lider@salon.test     | Password123!
-  Salon        | salon@salon.test     | Password123!
--------------------------------------------------------
+  -------------------------------------------------------
+    ROL          | EMAIL                | CONTRASENA
+  -------------------------------------------------------
+    Admin        | admin@salon.test     | Password123!
+    Lider        | lider@salon.test     | Password123!
+    Salon        | salon@salon.test     | Password123!
+  -------------------------------------------------------
   Salon Demo   (asignado a: Lider Regional)
 
 Para cambiar de rol en el frontend (demo):

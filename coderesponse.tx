@@ -1,0 +1,298 @@
+Los códigos de error que puede obtener es de acuerdo al monto de la transacción con las tarjetas anteriormente mencionadas:
+
+ 
+
+Monto
+
+Respose Code
+
+Response Text
+
+1.00
+
+00
+
+APPROVAL 599
+
+1.01
+
+01
+
+CALL
+
+1.02
+
+02
+
+CALL
+
+1.03
+
+03
+
+TERM ID ERROR
+
+1.04
+
+04
+
+HOLD-CALL
+
+1.05
+
+05
+
+DECLINE
+
+1.06
+
+06
+
+ERROR
+
+1.07
+
+07
+
+HOLD-CALL
+
+1.59
+
+10
+
+Partial Approval/Authorization
+
+1.09
+
+12
+
+INVALID TRANS
+
+1.10
+
+13
+
+AMOUNT ERROR
+
+1.11
+
+14
+
+CARD NO. ERROR
+
+1.12
+
+15
+
+NO SUCH ISSUER
+
+1.13
+
+19
+
+RE ENTER
+
+1.14
+
+21
+
+NO ACTION TAKEN
+
+1.15
+
+28
+
+NO REPLY
+
+1.18
+
+41
+
+HOLD-CALL
+
+1.19
+
+43
+
+HOLD-CALL
+
+1.20
+
+51
+
+DECLINE
+
+1.21
+
+52
+
+NO CHECK ACCOUNT
+
+1.22
+
+53
+
+NO SAVE ACCOUNT
+
+1.23
+
+54
+
+EXPIRED CARD
+
+1.24
+
+55
+
+WRONG PIN
+
+1.26
+
+57
+
+SERV NOT ALLOWED
+
+1.27
+
+58
+
+SERV NOT ALLOWED
+
+1.29
+
+61
+
+DECLINE
+
+1.30
+
+62
+
+DECLINE
+
+1.31
+
+63
+
+SEC VIOLATION
+
+1.32
+
+65
+
+DECLINE
+
+1.33
+
+75
+
+PIN EXCEEDED
+
+1.34
+
+76
+
+NO ACTION TAKEN
+
+1.35
+
+77
+
+NO ACTION TAKEN
+
+1.38
+
+80
+
+DATE ERROR
+
+1.39
+
+81
+
+ENCRYPTION ERROR
+
+1.40
+
+82
+
+CASHBACK NOT APP
+
+1.41
+
+83
+
+CANT VERIFY PIN
+
+1.42
+
+85
+
+NOT DECLINED
+
+1.45
+
+91
+
+NO REPLY
+
+1.46
+
+92
+
+INVALID ROUTING
+
+1.47
+
+93
+
+DECLINE
+
+1.48
+
+94
+
+DUP TRANS
+
+1.49
+
+96
+
+SYSTEM ERROR
+
+1.51
+
+EB
+
+CHECK DIGIT ERR
+
+1.53
+
+ER
+
+ERROR
+
+1.54
+
+N3
+
+CASHBACK NOT AVL
+
+1.55
+
+N4
+
+DECLINE
+
+1.56
+
+N7
+
+CVV2 MISMATCH
+
+1.57
+
+TO
+
+TIMEOUT
+

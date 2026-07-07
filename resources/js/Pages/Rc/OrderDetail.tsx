@@ -64,6 +64,10 @@ type Order = {
     points_earned: number;
     payment_method: string;
     stripe_payment_intent_id: string | null;
+    todopago_transaccion_id: string | null;
+    todopago_card_number_masked: string | null;
+    todopago_reversal_status: string | null;
+    todopago_reversed_at: string | null;
     customer_name: string;
     customer_email: string;
     notes: string | null;
@@ -82,9 +86,11 @@ export default function OrderDetail({ order }: Props) {
     const user = usePage().props.auth.user;
     const userRole: RcRole = user.role ?? 'salon';
     const isAdmin = userRole === 'admin';
-
     const handleStatusChange = (newStatus: string) => {
-        if (!confirm('¿Cambiar el estado de este pedido?')) return;
+        const msg = newStatus === 'cancelled' && order.todopago_transaccion_id
+            ? 'Se revertirá el pago en TodoPago. ¿Continuar?'
+            : '¿Cambiar el estado de este pedido?';
+        if (!confirm(msg)) return;
         router.patch(route('rc.orders.status', { id: order.id }), { status: newStatus });
     };
 
@@ -166,12 +172,32 @@ export default function OrderDetail({ order }: Props) {
                                 Pago
                             </Typography>
                             <Typography variant="body2">
-                                Método: {order.payment_method === 'stripe' ? 'Tarjeta' : order.payment_method}
+                                Método: {order.payment_method === 'todopago' ? 'TodoPago' : order.payment_method}
                             </Typography>
                             {order.stripe_payment_intent_id && (
                                 <Typography variant="body2" color="text.secondary">
                                     ID: {order.stripe_payment_intent_id}
                                 </Typography>
+                            )}
+                            {order.todopago_transaccion_id && (
+                                <>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Transacción: {order.todopago_transaccion_id}
+                                    </Typography>
+                                    {order.todopago_card_number_masked && (
+                                        <Typography variant="body2" color="text.secondary">
+                                            Tarjeta: {order.todopago_card_number_masked}
+                                        </Typography>
+                                    )}
+                                    {order.todopago_reversal_status && (
+                                        <Chip
+                                            size="small"
+                                            label={order.todopago_reversal_status === 'reversed' ? 'Reversión OK' : 'Reversión fallida'}
+                                            color={order.todopago_reversal_status === 'reversed' ? 'success' : 'error'}
+                                            sx={{ mt: 1, fontWeight: 600 }}
+                                        />
+                                    )}
+                                </>
                             )}
                         </CardContent>
                     </Card>
@@ -217,7 +243,7 @@ export default function OrderDetail({ order }: Props) {
                         </Stack>
 
                         <Stack direction="row" spacing={1}>
-                            {NEXT_STATUS[order.status] && (
+                            {isAdmin && NEXT_STATUS[order.status] && (
                                 <Button
                                     variant="contained"
                                     color={NEXT_STATUS[order.status] === 'delivered' ? 'success' : 'info'}
@@ -226,7 +252,7 @@ export default function OrderDetail({ order }: Props) {
                                     Marcar como {STATUS_LABELS[NEXT_STATUS[order.status]!].toLowerCase()}
                                 </Button>
                             )}
-                            {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                            {order.status === 'packaging' && isAdmin && (
                                 <Button
                                     variant="outlined"
                                     color="error"

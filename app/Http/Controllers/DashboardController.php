@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Benefit;
 use App\Models\Order;
+use App\Models\Redemption;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -24,6 +26,34 @@ class DashboardController extends Controller
         return Inertia::render('Dashboard', $data);
     }
 
+    private function benefitsForRole(?string $role): array
+    {
+        $query = Benefit::query()->where('active', true);
+
+        if ($role !== null && $role !== User::ROLE_ADMIN) {
+            $query->where(function ($q) use ($role) {
+                $q->whereNull('target_role')
+                    ->orWhere('target_role', $role);
+            });
+        }
+
+        return $query
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get()
+            ->map(fn ($b) => [
+                'id' => $b->id,
+                'title' => $b->title,
+                'kind' => $b->kind,
+                'pointsCost' => $b->points_cost,
+                'description' => $b->description,
+                'imagePath' => $b->image_path ? '/storage/'.$b->image_path : null,
+                'targetRole' => $b->target_role,
+            ])
+            ->values()
+            ->all();
+    }
+
     private function adminData(): array
     {
         $totalUsers = User::query()->count();
@@ -37,6 +67,9 @@ class DashboardController extends Controller
         $lideresActivos = User::query()->where('role', User::ROLE_LIDER)->where('status', User::STATUS_ACTIVE)->count();
         $salonesSinLider = User::query()->where('role', User::ROLE_SALON)->whereNull('leader_id')->count();
 
+        $totalPointsEarned = (int) Order::query()->sum('points_earned');
+        $totalPointsRedeemed = (int) Redemption::query()->sum('points_cost');
+
         $totalOrders = Order::query()->count();
         $pendingOrders = Order::query()->where('status', Order::STATUS_PACKAGING)->count();
         $recentOrders = Order::query()
@@ -47,7 +80,7 @@ class DashboardController extends Controller
             ->toArray();
 
         $registrationsOverTime = User::query()
-            ->select(DB::raw("strftime('%Y-%m', created_at) as month"), DB::raw('count(*) as total'))
+            ->select(DB::raw("DATE_FORMAT(created_at, '%Y-%m') as month"), DB::raw('count(*) as total'))
             ->groupBy('month')
             ->orderBy('month')
             ->get()
@@ -74,7 +107,7 @@ class DashboardController extends Controller
             ->toArray();
 
         $registrationsByDay = User::query()
-            ->select(DB::raw("strftime('%Y-%m-%d', created_at) as date"), DB::raw('count(*) as total'))
+            ->select(DB::raw("DATE_FORMAT(created_at, '%Y-%m-%d') as date"), DB::raw('count(*) as total'))
             ->where('created_at', '>=', now()->subDays(30))
             ->groupBy('date')
             ->orderBy('date')
@@ -91,6 +124,8 @@ class DashboardController extends Controller
                 ['label' => 'Pendientes', 'value' => (string) $pendingUsers],
                 ['label' => 'Pedidos totales', 'value' => (string) $totalOrders],
                 ['label' => 'Pedidos pendientes', 'value' => (string) $pendingOrders],
+                ['label' => 'Puntos ganados', 'value' => (string) $totalPointsEarned],
+                ['label' => 'Puntos canjeados', 'value' => (string) $totalPointsRedeemed],
             ],
             'charts' => [
                 'roleDistribution' => [
@@ -110,6 +145,7 @@ class DashboardController extends Controller
             'recentUsers' => $recentUsers,
             'recentOrders' => $recentOrders,
             'salonesSinLider' => $salonesSinLider,
+            'benefits' => $this->benefitsForRole(User::ROLE_ADMIN),
         ];
     }
 
@@ -125,6 +161,10 @@ class DashboardController extends Controller
             ->limit(5)
             ->get(['id', 'name', 'email', 'status', 'created_at'])
             ->toArray();
+
+        $pointsBalance = (int) $lider->points_balance;
+        $pointsEarnedMonth = (int) Order::query()->where('user_id', $lider->id)
+            ->where('created_at', '>=', now()->startOfMonth())->sum('points_earned');
 
         $totalOrders = Order::query()->where('user_id', $lider->id)->count();
         $pendingOrders = Order::query()->where('user_id', $lider->id)->where('status', Order::STATUS_PACKAGING)->count();
@@ -144,16 +184,23 @@ class DashboardController extends Controller
                 ['label' => 'Pendientes', 'value' => (string) $salonesPendientes],
                 ['label' => 'Mis pedidos', 'value' => (string) $totalOrders],
                 ['label' => 'Pedidos pendientes', 'value' => (string) $pendingOrders],
+                ['label' => 'Mis puntos', 'value' => (string) $pointsBalance],
+                ['label' => 'Puntos del mes', 'value' => (string) $pointsEarnedMonth],
             ],
             'charts' => null,
             'recentUsers' => $recentSalones,
             'recentOrders' => $recentOrders,
             'salonesSinLider' => 0,
+            'benefits' => $this->benefitsForRole(User::ROLE_LIDER),
         ];
     }
 
     private function salonData(User $salon): array
     {
+        $pointsBalance = (int) $salon->points_balance;
+        $pointsEarnedMonth = (int) Order::query()->where('user_id', $salon->id)
+            ->where('created_at', '>=', now()->startOfMonth())->sum('points_earned');
+
         $totalOrders = Order::query()->where('user_id', $salon->id)->count();
         $recentOrders = Order::query()
             ->where('user_id', $salon->id)
@@ -168,11 +215,14 @@ class DashboardController extends Controller
                 ['label' => 'Mi estado', 'value' => $salon->status === User::STATUS_ACTIVE ? 'Activo' : 'Pendiente'],
                 ['label' => 'Mi lider', 'value' => $salon->leader?->name ?? 'Sin asignar'],
                 ['label' => 'Mis pedidos', 'value' => (string) $totalOrders],
+                ['label' => 'Mis puntos', 'value' => (string) $pointsBalance],
+                ['label' => 'Puntos del mes', 'value' => (string) $pointsEarnedMonth],
             ],
             'charts' => null,
             'recentUsers' => [],
             'recentOrders' => $recentOrders,
             'salonesSinLider' => 0,
+            'benefits' => $this->benefitsForRole(User::ROLE_SALON),
         ];
     }
 }
