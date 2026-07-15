@@ -72,13 +72,17 @@ class BulkUploadController extends Controller
             rewind($handle);
         }
 
-        $header = fgetcsv($handle);
-        if (! $header) {
+        $rawHeader = fgetcsv($handle);
+        if (! $rawHeader) {
             fclose($handle);
 
             return back()->with('error', 'El archivo CSV no tiene encabezados.');
         }
 
+        $separator = str_contains(implode('', $rawHeader), ';') ? ';' : ',';
+        $header = count($rawHeader) === 1 && str_contains($rawHeader[0], ';')
+            ? explode(';', $rawHeader[0])
+            : $rawHeader;
         $header = array_map('trim', $header);
         $categoryMap = array_combine(
             array_map('strtolower', Article::CATEGORIES),
@@ -90,9 +94,19 @@ class BulkUploadController extends Controller
         $errors = [];
 
         $lineNumber = 1;
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, 0, $separator)) !== false) {
             $lineNumber++;
-            $data = array_combine($header, array_map('trim', $row));
+
+            try {
+                if (count($row) < count($header)) {
+                    $row = array_pad($row, count($header), '');
+                }
+                $data = array_combine($header, array_map('trim', $row));
+            } catch (\Throwable $e) {
+                $errors[] = "Linea {$lineNumber}: columna no coincide con el encabezado.";
+
+                continue;
+            }
 
             if (empty($data['nombre'])) {
                 $errors[] = "Linea {$lineNumber}: falta el nombre.";
@@ -173,22 +187,36 @@ class BulkUploadController extends Controller
             rewind($handle);
         }
 
-        $header = fgetcsv($handle);
-        if (! $header) {
+        $rawHeader = fgetcsv($handle);
+        if (! $rawHeader) {
             fclose($handle);
 
             return back()->with('error', 'El archivo CSV no tiene encabezados.');
         }
 
+        $separator = str_contains(implode('', $rawHeader), ';') ? ';' : ',';
+        $header = count($rawHeader) === 1 && str_contains($rawHeader[0], ';')
+            ? explode(';', $rawHeader[0])
+            : $rawHeader;
         $header = array_map('trim', $header);
         $mode = $request->input('mode', 'set');
         $updated = 0;
         $errors = [];
 
         $lineNumber = 1;
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, 0, $separator)) !== false) {
             $lineNumber++;
-            $data = array_combine($header, array_map('trim', $row));
+
+            try {
+                if (count($row) < count($header)) {
+                    $row = array_pad($row, count($header), '');
+                }
+                $data = array_combine($header, array_map('trim', $row));
+            } catch (\Throwable $e) {
+                $errors[] = "Linea {$lineNumber}: columna no coincide con el encabezado.";
+
+                continue;
+            }
 
             if (empty($data['nombre']) && empty($data['id'])) {
                 $errors[] = "Linea {$lineNumber}: falta 'nombre' o 'id'.";
