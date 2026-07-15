@@ -10,3 +10,7 @@
     --brand-beige: #E8DDD0;
     --brand-ivory: #F5F0E8;
 }
+
+.swal-toast-container {
+    margin-top: 72px;
+}

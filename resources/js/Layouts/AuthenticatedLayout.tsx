@@ -246,6 +246,7 @@ export default function Authenticated({
     const navItems = useNav(role);
 
     const [notifications, setNotifications] = useState<Notification[]>(() => getNotifications(userId));
+    const [cartItems, setCartItems] = useState(cartCount());
     const [mobileOpen, setMobileOpen] = useState(false);
     const [accountAnchor, setAccountAnchor] = useState<null | HTMLElement>(null);
     const [notifAnchor, setNotifAnchor] = useState<null | HTMLElement>(null);
@@ -256,7 +257,11 @@ export default function Authenticated({
         return () => window.removeEventListener('rc_notifications_changed', onChange);
     }, []);
 
-    const cartItems = cartCount();
+    useEffect(() => {
+        const onChange = () => setCartItems(cartCount());
+        window.addEventListener('rc_cart_changed', onChange);
+        return () => window.removeEventListener('rc_cart_changed', onChange);
+    }, []);
 
     const drawer = (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

@@ -12,6 +12,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TodoPagoController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\ZoneController;
@@ -21,6 +22,7 @@ use App\Models\Redemption;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -113,9 +115,16 @@ Route::get('/carrito', fn () => Inertia::render('Public/Cart'))->name('shop.cart
 // Public affiliate card preview (no auth required)
 Route::get('/carnet', fn () => Inertia::render('Public/AffiliateCard'))->name('carnet');
 
+// Video tutorials for end users (no auth required)
+Route::get('/tutoriales', fn () => Inertia::render('Public/Tutorials'))->name('tutorials');
+
 // Public salon registration request
 Route::get('/solicitar-registro', [RegistrationController::class, 'create'])->name('register.request');
 Route::post('/solicitar-registro', [RegistrationController::class, 'store'])->name('register.request.store');
+
+// Membership info and payment
+Route::get('/api/membresia', [RegistrationController::class, 'membershipInfo'])->name('api.membership.info');
+Route::post('/api/membresia/pagar', [RegistrationController::class, 'payMembership'])->name('api.membership.pay');
 
 // Registration success page (shown after self-registration)
 Route::get('/registro-exitoso', fn () => Inertia::render('Public/RegistrationSuccess'))->name('register.success');
@@ -132,9 +141,16 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
     Route::get('/productos', fn () => Inertia::render('Rc/Products'))->name('products');
     Route::get('/pos', function () {
+        $authUser = request()->user();
+        $isAdmin = $authUser->role === User::ROLE_ADMIN;
+
         $customers = User::query()
             ->whereIn('role', [User::ROLE_LIDER, User::ROLE_SALON])
             ->where('status', User::STATUS_ACTIVE)
+            ->where('id', '!=', $authUser->id)
+            ->when(! $isAdmin, function ($q) use ($authUser) {
+                $q->where('leader_id', $authUser->id);
+            })
             ->with('leader:id,name,email,role')
             ->orderBy('role')
             ->orderBy('name')
@@ -144,7 +160,23 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
             'customers' => $customers,
         ]);
     })->name('pos');
-    Route::get('/carrito', fn () => Inertia::render('Rc/Cart'))->name('cart');
+    Route::get('/carrito', function () {
+        $authUser = request()->user();
+        $isAdmin = $authUser->role === User::ROLE_ADMIN;
+
+        $customers = User::query()
+            ->whereIn('role', [User::ROLE_LIDER, User::ROLE_SALON])
+            ->where('status', User::STATUS_ACTIVE)
+            ->where('id', '!=', $authUser->id)
+            ->when(! $isAdmin, function ($q) use ($authUser) {
+                $q->where('leader_id', $authUser->id);
+            })
+            ->get(['id', 'name', 'email', 'role', 'client_type']);
+
+        return Inertia::render('Rc/Cart', [
+            'customers' => $customers,
+        ]);
+    })->name('cart');
     Route::get('/puntos', function () {
         $user = request()->user();
 
@@ -260,6 +292,8 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
     Route::post('/pendientes/{id}/rechazar', [RegistrationController::class, 'reject'])->name('reject');
 
     Route::get('/configuracion', fn () => Inertia::render('Rc/Settings'))->name('settings');
+    Route::get('/api/configuracion', [SettingsController::class, 'index'])->name('api.settings.index');
+    Route::put('/api/configuracion', [SettingsController::class, 'update'])->name('api.settings.update');
 
     Route::get('/articulos', [ArticleController::class, 'index'])->name('articles');
     Route::get('/articulos/crear', [ArticleController::class, 'create'])->name('articles.create');
@@ -287,6 +321,27 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
     Route::match(['patch', 'post'], '/zonas/{id}', [ZoneController::class, 'update'])->name('zones.update');
     Route::delete('/zonas/{id}', [ZoneController::class, 'destroy'])->name('zones.destroy');
     Route::post('/zonas/{id}/asignar-lideres', [ZoneController::class, 'assignLeaders'])->name('zones.assign-leaders');
+
+    Route::post('/migrar', function () {
+        if (request()->user()->role !== User::ROLE_ADMIN) {
+            abort(403, 'Solo el administrador puede ejecutar migraciones.');
+        }
+
+        try {
+            Artisan::call('migrate', ['--force' => true]);
+            $output = Artisan::output();
+
+            return response()->json([
+                'ok' => true,
+                'output' => $output,
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    })->name('migrate');
 });
 
 Route::middleware('auth')->group(function () {

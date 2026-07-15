@@ -1,11 +1,13 @@
 import '../css/app.css';
 import './bootstrap';
 
-import { createInertiaApp } from '@inertiajs/react';
+import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import { createTheme } from '@mui/material/styles';
 import { createRoot } from 'react-dom/client';
+
+import { toastSuccess, toastError } from './rc/toast';
 
 import '@fontsource/inter/latin.css';
 import '@fontsource/poppins/latin.css';
@@ -85,6 +87,15 @@ const theme = createTheme({
 });
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+
+router.on('success', (event) => {
+    const flash = event.detail.page.props.flash as
+        | { success?: string; error?: string; status?: string }
+        | undefined;
+    if (flash?.success) toastSuccess(flash.success);
+    if (flash?.error) toastError(flash.error);
+    if (flash?.status) toastSuccess(flash.status);
+});
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

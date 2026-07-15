@@ -1,12 +1,10 @@
 import {
-    Alert,
     Box,
     Button,
     Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
-    Snackbar,
     Stack,
     Typography,
 } from '@mui/material';
@@ -16,6 +14,7 @@ import { useMemo, useState } from 'react';
 import type { Product } from '@/rc/mock';
 import { getPromotionsForProduct } from '@/rc/promotions';
 import { getReceiptConfig } from '@/rc/receipt';
+import { toastSuccess, toastError } from '@/rc/toast';
 
 type LineItem = {
     product: Product;
@@ -52,11 +51,6 @@ export default function ReceiptDialog({ open, onClose, items, customerName, date
     const receiptId = `R-${date.replace(/-/g, '')}-${String(Date.now()).slice(-4)}`;
 
     const [printing, setPrinting] = useState(false);
-    const [snackbar, setSnackbar] = useState<{ open: boolean; severity: 'success' | 'error'; message: string }>({
-        open: false,
-        severity: 'success',
-        message: '',
-    });
 
     const handlePrint = async () => {
         setPrinting(true);
@@ -88,12 +82,12 @@ export default function ReceiptDialog({ open, onClose, items, customerName, date
 
             const data = await res.json();
             if (data.success) {
-                setSnackbar({ open: true, severity: 'success', message: data.message });
+                toastSuccess(data.message);
             } else {
-                setSnackbar({ open: true, severity: 'error', message: data.message });
+                toastError(data.message);
             }
         } catch {
-            setSnackbar({ open: true, severity: 'error', message: 'Error de conexion al imprimir' });
+            toastError('Error de conexion al imprimir');
         } finally {
             setPrinting(false);
         }
@@ -251,22 +245,6 @@ export default function ReceiptDialog({ open, onClose, items, customerName, date
                     </Button>
                 </DialogActions>
             </Dialog>
-
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={4000}
-                onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-                <Alert
-                    severity={snackbar.severity}
-                    variant="filled"
-                    onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-                    sx={{ width: '100%' }}
-                >
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
         </>
     );
 }

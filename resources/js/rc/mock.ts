@@ -4,6 +4,8 @@ export type Product = {
     brand: string;
     category: string;
     price: number;
+    leader_price?: number;
+    public_price?: number;
     points: number;
 };
 
@@ -14,6 +16,8 @@ export const products: Product[] = [
         brand: 'KeraNova',
         category: 'Cabello',
         price: 320,
+        leader_price: 260,
+        public_price: 400,
         points: 25,
     },
     {
@@ -22,6 +26,8 @@ export const products: Product[] = [
         brand: 'KeraNova',
         category: 'Cabello',
         price: 295,
+        leader_price: 235,
+        public_price: 370,
         points: 22,
     },
     {
@@ -30,6 +36,8 @@ export const products: Product[] = [
         brand: 'ColorLab',
         category: 'Cabello',
         price: 450,
+        leader_price: 360,
+        public_price: 560,
         points: 35,
     },
     {
@@ -38,6 +46,8 @@ export const products: Product[] = [
         brand: 'ColorLab',
         category: 'Color',
         price: 180,
+        leader_price: 145,
+        public_price: 225,
         points: 12,
     },
     {
@@ -46,6 +56,8 @@ export const products: Product[] = [
         brand: 'ColorLab',
         category: 'Color',
         price: 160,
+        leader_price: 130,
+        public_price: 200,
         points: 10,
     },
     {
@@ -54,6 +66,8 @@ export const products: Product[] = [
         brand: 'DermaSoft',
         category: 'Estetica',
         price: 520,
+        leader_price: 420,
+        public_price: 650,
         points: 40,
     },
     {
@@ -62,6 +76,8 @@ export const products: Product[] = [
         brand: 'CleanPro',
         category: 'Higiene',
         price: 130,
+        leader_price: 105,
+        public_price: 165,
         points: 8,
     },
     {
@@ -70,6 +86,8 @@ export const products: Product[] = [
         brand: 'CleanPro',
         category: 'Higiene',
         price: 210,
+        leader_price: 170,
+        public_price: 265,
         points: 14,
     },
 ];

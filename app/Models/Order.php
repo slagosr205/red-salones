@@ -30,6 +30,9 @@ class Order extends Model
         'customer_name',
         'customer_email',
         'notes',
+        'shipping_address',
+        'shipping_latitude',
+        'shipping_longitude',
     ];
 
     const STATUS_PACKAGING = 'packaging';

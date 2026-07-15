@@ -1,7 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, usePage } from '@inertiajs/react';
 import {
-    Alert,
     Box,
     Button,
     Card,
@@ -10,7 +9,6 @@ import {
     Chip,
     Grid,
     InputAdornment,
-    Snackbar,
     Stack,
     TextField,
     Typography,
@@ -18,6 +16,8 @@ import {
 import { Search } from '@mui/icons-material';
 import axios from 'axios';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { toastSuccess, toastError } from '@/rc/toast';
 
 interface Benefit {
     id: number;
@@ -34,11 +34,6 @@ export default function RedeemPage() {
     const [benefits, setBenefits] = useState<Benefit[]>([]);
     const [loading, setLoading] = useState(true);
     const [balance, setBalance] = useState(user.points_balance ?? 0);
-    const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
-        open: false,
-        message: '',
-        severity: 'success',
-    });
     const [search, setSearch] = useState('');
     const [redeeming, setRedeeming] = useState<number | null>(null);
 
@@ -93,9 +88,9 @@ export default function RedeemPage() {
                 setBalance((prev) => prev - b.points_cost);
             }
 
-            setSnackbar({ open: true, message: 'Canje realizado con exito', severity: 'success' });
+            toastSuccess('Canje realizado con exito');
         } catch {
-            setSnackbar({ open: true, message: 'Error de conexion', severity: 'error' });
+            toastError('Error de conexion');
         } finally {
             setRedeeming(null);
         }
@@ -185,22 +180,6 @@ export default function RedeemPage() {
                     {search ? 'Sin resultados para tu busqueda' : 'No hay beneficios disponibles.'}
                 </Typography>
             )}
-
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={4000}
-                onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-                <Alert
-                    severity={snackbar.severity}
-                    variant="filled"
-                    onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-                    sx={{ width: '100%' }}
-                >
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
         </AuthenticatedLayout>
     );
 }

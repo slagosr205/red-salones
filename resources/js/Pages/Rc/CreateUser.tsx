@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Box, Button, Card, CardContent, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, CircularProgress, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from '@mui/material';
 import { useState } from 'react';
 
 import type { RcRole } from '@/rc/role';
@@ -69,6 +69,7 @@ export default function CreateUser() {
                                         value={role}
                                         label="Tipo de usuario"
                                         onChange={(e) => setRole(e.target.value)}
+                                        disabled={saving}
                                     >
                                         <MenuItem value="salon">Salon</MenuItem>
                                         <MenuItem value="lider">Lider</MenuItem>
@@ -83,6 +84,7 @@ export default function CreateUser() {
                                         value={clientType}
                                         label="Tipo de cliente"
                                         onChange={(e) => setClientType(e.target.value)}
+                                        disabled={saving}
                                     >
                                         <MenuItem value="salon">Salón</MenuItem>
                                         <MenuItem value="consumidor_final">Consumidor Final</MenuItem>
@@ -96,6 +98,7 @@ export default function CreateUser() {
                                 label="Nombre"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
+                                disabled={saving}
                             />
                             <TextField
                                 required
@@ -104,6 +107,7 @@ export default function CreateUser() {
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
+                                disabled={saving}
                             />
                             <TextField
                                 required
@@ -113,6 +117,7 @@ export default function CreateUser() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 helperText="Minimo 8 caracteres"
+                                disabled={saving}
                             />
 
                             {isAdmin && !isCreatingLider && (
@@ -122,6 +127,7 @@ export default function CreateUser() {
                                         value={leaderId}
                                         label="Lider asignado"
                                         onChange={(e) => setLeaderId(e.target.value as number)}
+                                        disabled={saving}
                                     >
                                         <MenuItem value="">Seleccionar lider...</MenuItem>
                                         {leaders.map((l) => (
@@ -133,8 +139,14 @@ export default function CreateUser() {
                                 </FormControl>
                             )}
 
-                            <Button type="submit" variant="contained" disabled={saving}>
-                                {saving ? 'Creando...' : 'Crear usuario'}
+                            <Button
+                                type="submit"
+                                variant="contained"
+                                disabled={saving}
+                                startIcon={saving ? <CircularProgress size={18} color="inherit" /> : undefined}
+                                sx={{ fontWeight: 700 }}
+                            >
+                                {saving ? 'Creando usuario...' : 'Crear usuario'}
                             </Button>
                         </Stack>
                     </CardContent>

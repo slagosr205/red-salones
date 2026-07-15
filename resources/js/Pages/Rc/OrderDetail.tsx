@@ -17,6 +17,7 @@ import {
     Typography,
 } from '@mui/material';
 import { ArrowBack } from '@mui/icons-material';
+import StaticMap from '@/Components/StaticMap';
 import type { RcRole } from '@/rc/role';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -71,6 +72,9 @@ type Order = {
     customer_name: string;
     customer_email: string;
     notes: string | null;
+    shipping_address: string | null;
+    shipping_latitude: number | null;
+    shipping_longitude: number | null;
     created_at: string;
     updated_at: string;
     user: { id: number; name: string; email: string } | null;
@@ -202,6 +206,31 @@ export default function OrderDetail({ order }: Props) {
                         </CardContent>
                     </Card>
                 </Stack>
+
+                {(order.shipping_address || order.shipping_latitude != null) && (
+                    <Card>
+                        <CardContent>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 2 }}>
+                                Direccion de entrega
+                            </Typography>
+                            {order.shipping_address ? (
+                                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mb: 1 }}>
+                                    {order.shipping_address}
+                                </Typography>
+                            ) : order.shipping_latitude != null && (
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                    Coordenadas: {order.shipping_latitude}, {order.shipping_longitude}
+                                </Typography>
+                            )}
+                            {order.shipping_latitude != null && order.shipping_longitude != null && (
+                                <StaticMap
+                                    latitude={order.shipping_latitude}
+                                    longitude={order.shipping_longitude}
+                                />
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
 
                 <Card>
                     <CardContent>

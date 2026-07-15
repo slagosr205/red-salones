@@ -23,9 +23,24 @@ import { products as mockProducts } from '@/rc/mock';
 import { getLeaderEmail } from '@/rc/network';
 import { addPointsEvent } from '@/rc/points';
 
+function effectivePrice(p: any, role: string | null, clientType?: string | null): number {
+    if (!role) {
+        return p.public_price ?? p.price ?? 0;
+    }
+    if (role === 'lider' || role === 'admin') {
+        return p.leader_price ?? p.price ?? 0;
+    }
+    if (clientType === 'consumidor_final') {
+        return p.public_price ?? p.price ?? 0;
+    }
+    return p.price ?? 0;
+}
+
 export default function PublicCart() {
     const auth = (usePage().props as any).auth;
     const user = auth?.user ?? null;
+    const userRole: string | null = user?.role ?? null;
+    const userClientType = user?.client_type;
 
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [cart, setCartState] = useState(() => getCart());
@@ -55,7 +70,7 @@ export default function PublicCart() {
                 return {
                     ...ci,
                     product: p,
-                    total: p.price * ci.qty,
+                    total: effectivePrice(p, userRole, userClientType) * ci.qty,
                     points: p.points * ci.qty,
                 };
             })
@@ -143,7 +158,7 @@ export default function PublicCart() {
                                                         {r.product.name}
                                                     </Typography>
                                                     <Typography variant="body2" color="text.secondary">
-                                                        L {r.product.price.toFixed(2)} | {r.product.points} puntos
+                                                        L {effectivePrice(r.product, userRole, userClientType).toFixed(2)} | {r.product.points} puntos
                                                     </Typography>
                                                 </Box>
                                                 <Stack direction="row" spacing={1} alignItems="center">

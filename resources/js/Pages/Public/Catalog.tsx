@@ -29,6 +29,19 @@ import { addToCart } from '@/rc/cart';
 import { products as mockProducts } from '@/rc/mock';
 import { refreshActivePromotions, getActivePromotions } from '@/rc/promotions';
 
+function effectivePrice(p: any, role: string | null, clientType?: string | null): number {
+    if (!role) {
+        return p.public_price ?? p.price ?? 0;
+    }
+    if (role === 'lider' || role === 'admin') {
+        return p.leader_price ?? p.price ?? 0;
+    }
+    if (clientType === 'consumidor_final') {
+        return p.public_price ?? p.price ?? 0;
+    }
+    return p.price ?? 0;
+}
+
 function scoreProduct(query: string, p: any): number {
     const q = query.trim().toLowerCase();
     if (!q) return 1;
@@ -46,6 +59,8 @@ function scoreProduct(query: string, p: any): number {
 export default function PublicCatalog() {
     const auth = (usePage().props as any).auth;
     const user = auth?.user ?? null;
+    const userRole: string | null = user?.role ?? null;
+    const userClientType = user?.client_type;
 
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [articles, setArticles] = useState<any[]>([]);
@@ -106,8 +121,11 @@ export default function PublicCatalog() {
             .filter((p) => (category ? p.category === category : true))
             .filter((p) => (brand ? p.brand === brand : true))
             .filter((p) => (onlyPromos ? promoProductIds.has(p.id) : true))
-            .filter((p) => p.price >= price[0] && p.price <= price[1]);
-    }, [query, category, brand, onlyPromos, price, products]);
+            .filter((p) => {
+                const ep = effectivePrice(p, userRole, userClientType);
+                return ep >= price[0] && ep <= price[1];
+            });
+    }, [query, category, brand, onlyPromos, price, products, userRole, userClientType]);
 
     const filters = (
         <Box sx={{ p: 2.25, width: 320 }}>
@@ -265,7 +283,7 @@ export default function PublicCatalog() {
                                         <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{o.name}</Typography>
                                         <Typography variant="caption" color="text.secondary" noWrap>{o.brand} &middot; {o.category}</Typography>
                                     </Box>
-                                    <Typography variant="body2" sx={{ fontWeight: 700, flexShrink: 0 }}>L {o.price.toFixed(2)}</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700, flexShrink: 0 }}>L {effectivePrice(o, userRole, userClientType).toFixed(2)}</Typography>
                                 </Box>
                             );
                         }}
@@ -327,7 +345,7 @@ export default function PublicCatalog() {
                                         </Typography>
                                         <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mt: 1 }}>
                                             <Typography variant="h6" sx={{ fontWeight: 900 }}>
-                                                L {p.price.toFixed(2)}
+                                                L {effectivePrice(p, userRole, userClientType).toFixed(2)}
                                             </Typography>
                                             <Typography variant="body2" color="text.secondary">
                                                 {p.points} puntos

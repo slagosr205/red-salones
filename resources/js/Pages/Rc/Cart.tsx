@@ -23,23 +23,34 @@ import {
 import { CreditCard, Delete } from '@mui/icons-material';
 import { useEffect, useMemo, useState } from 'react';
 
+import LocationPicker from '@/Components/LocationPicker';
 import TodoPagoPaymentDialog from '@/Components/TodoPagoPaymentDialog';
 import ReceiptDialog from '@/Components/ReceiptDialog';
 import { clearCart, getCart, removeFromCart, updateQty } from '@/rc/cart';
 import { getDiscountForProduct, getPromotionsForProduct, refreshActivePromotions } from '@/rc/promotions';
 import { products as mockProducts } from '@/rc/mock';
 import { addNotification } from '@/rc/notifications';
+import { toastSuccess, toastError } from '@/rc/toast';
 import { getReceiptConfig } from '@/rc/receipt';
 import type { RcRole } from '@/rc/role';
 
-const salones = [
-    { id: 's-001', name: 'Salon Glam Studio', email: 'glam@salon.hn' },
-    { id: 's-002', name: 'Salon Bella Forma', email: 'bella@salon.hn' },
-    { id: 's-003', name: 'Salon Nova Beauty', email: 'nova@salon.hn' },
-];
+type CustomerOption = {
+    id: number;
+    name: string;
+    email: string;
+    role: 'lider' | 'salon';
+    client_type: 'salon' | 'consumidor_final' | null;
+};
 
-function effectivePrice(p: any, role: string, clientType?: string | null): number {
-    if (role === 'lider' || role === 'admin') {
+type PurchaseType = 'personal' | 'salon' | 'consumidor_final';
+
+function effectivePrice(p: any, role: string, clientType?: string | null, purchaseType?: PurchaseType | null): number {
+    if (role === 'admin') {
+        return p.leader_price ?? p.price ?? 0;
+    }
+    if (role === 'lider') {
+        if (purchaseType === 'salon') return p.price ?? 0;
+        if (purchaseType === 'consumidor_final') return p.public_price ?? p.price ?? 0;
         return p.leader_price ?? p.price ?? 0;
     }
     if (clientType === 'consumidor_final') {
@@ -57,15 +68,30 @@ export default function CartPage() {
     const userId = user.id;
     const userRole: RcRole = user.role ?? 'salon';
     const userClientType = user.client_type;
+    const customers = (usePage().props as any).customers as CustomerOption[];
+
+    const salones = useMemo(
+        () => customers.filter((c) => c.role === 'salon' && c.client_type !== 'consumidor_final'),
+        [customers],
+    );
+    const consumidoresFinales = useMemo(
+        () => customers.filter((c) => c.client_type === 'consumidor_final'),
+        [customers],
+    );
 
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [paymentOpen, setPaymentOpen] = useState(false);
     const [purchasing, setPurchasing] = useState(false);
     const [cart, setCartState] = useState(() => getCart());
-    const [selectedSalon, setSelectedSalon] = useState(salones[0].id);
+    const [purchaseType, setPurchaseType] = useState<PurchaseType>(userRole === 'lider' ? 'personal' : 'salon');
+    const [selectedSalon, setSelectedSalon] = useState<number>(salones[0]?.id ?? 0);
+    const [selectedConsumidor, setSelectedConsumidor] = useState<number>(consumidoresFinales[0]?.id ?? 0);
     const [receiptOpen, setReceiptOpen] = useState(false);
     const [articles, setArticles] = useState<any[]>([]);
     const [imageModal, setImageModal] = useState('');
+    const [shippingAddress, setShippingAddress] = useState('');
+    const [shippingLatitude, setShippingLatitude] = useState<number | null>(null);
+    const [shippingLongitude, setShippingLongitude] = useState<number | null>(null);
     const [receiptItems, setReceiptItems] = useState<Array<{
         product: any;
         qty: number;
@@ -93,7 +119,7 @@ export default function CartPage() {
             .map((ci) => {
                 const p = allProducts.find((x: any) => x.id === ci.productId);
                 if (!p) return null;
-                const unitPrice = effectivePrice(p, userRole, userClientType);
+                const unitPrice = effectivePrice(p, userRole, userClientType, purchaseType);
                 return {
                     ...ci,
                     product: p,
@@ -110,7 +136,7 @@ export default function CartPage() {
             total: number;
             points: number;
         }>;
-    }, [cart, allProducts, userRole]);
+    }, [cart, allProducts, userRole, userClientType, purchaseType]);
 
     const subtotal = rows.reduce((acc, r) => acc + r.total, 0);
     const totalDiscount = rows.reduce((acc, r) => acc + discountFor(r.product, r.qty), 0);
@@ -118,44 +144,67 @@ export default function CartPage() {
     const grandTotal = taxable + taxable * 0.15;
     const pointsEarned = rows.reduce((acc, r) => acc + r.points, 0);
     const salon = salones.find((s) => s.id === selectedSalon);
+    const consumidor = consumidoresFinales.find((c) => c.id === selectedConsumidor);
 
-    const finalizePurchase = async (transaccionId?: number, cardMasked?: string) => {
+    const finalizePurchase = async (transaccionId?: number, cardMasked?: string): Promise<boolean> => {
         setPurchasing(true);
 
         const date = new Date().toISOString().slice(0, 10);
-        const desc = userRole === 'lider' && salon
-            ? `Compra de Lider para ${salon.name}`
+        const desc = userRole === 'lider'
+            ? purchaseType === 'salon'
+                ? `Compra para salon ${salon?.name ?? ''}`
+                : purchaseType === 'consumidor_final'
+                    ? `Compra para consumidor final ${consumidor?.name ?? ''}`
+                    : 'Compra personal'
             : 'Compra (prototipo)';
 
+        const payload: Record<string, any> = {
+            items: rows.map((r) => {
+                const promos = getPromotionsForProduct(r.product.id);
+                return {
+                    product_name: r.product.name,
+                    product_id: r.product.id,
+                    quantity: r.qty,
+                    unit_price: r.unitPrice,
+                    discount: discountFor(r.product, r.qty),
+                    promo_type: promos.length > 0 ? promos[0].type : null,
+                    subtotal: r.total,
+                };
+            }),
+            subtotal,
+            total_discount: totalDiscount,
+            isv: taxable * 0.15,
+            grand_total: grandTotal,
+            points_earned: pointsEarned,
+            customer_name: user.name,
+            customer_email: user.email,
+            payment_method: 'todopago',
+            todopago_transaccion_id: transaccionId ? String(transaccionId) : null,
+            todopago_card_number_masked: cardMasked ?? null,
+            shipping_address: shippingAddress.trim() || null,
+            shipping_latitude: shippingLatitude,
+            shipping_longitude: shippingLongitude,
+        };
+
+        if (userRole === 'lider' && purchaseType === 'salon' && salon) {
+            payload.salon_id = salon.id;
+            payload.customer_name = salon.name;
+            payload.customer_email = salon.email;
+        }
+        if (userRole === 'lider' && purchaseType === 'consumidor_final' && consumidor) {
+            payload.customer_name = consumidor.name;
+            payload.customer_email = consumidor.email;
+        }
+
         try {
-            await axios.post(route('rc.orders.store'), {
-                items: rows.map((r) => {
-                    const promos = getPromotionsForProduct(r.product.id);
-                    return {
-                        product_name: r.product.name,
-                        product_id: r.product.id,
-                        quantity: r.qty,
-                        unit_price: r.unitPrice,
-                        discount: discountFor(r.product, r.qty),
-                        promo_type: promos.length > 0 ? promos[0].type : null,
-                        subtotal: r.total,
-                    };
-                }),
-                subtotal,
-                total_discount: totalDiscount,
-                isv: taxable * 0.15,
-                grand_total: grandTotal,
-                points_earned: pointsEarned,
-                customer_name: user.name,
-                customer_email: user.email,
-                payment_method: 'todopago',
-                todopago_transaccion_id: transaccionId ? String(transaccionId) : null,
-                todopago_card_number_masked: cardMasked ?? null,
-            });
-        } catch {
-            addNotification(userId, 'Error al crear el pedido. Los datos locales se guardaron igualmente.');
+            await axios.post(route('rc.orders.store'), payload);
+        } catch (e: any) {
+            const msg = e?.response?.data?.message ?? e?.response?.data?.error ?? e?.message ?? 'Error desconocido';
+            console.error('Error al crear pedido:', e?.response ?? e);
+            addNotification(userId, 'Error al crear el pedido: ' + msg);
+            toastError(msg);
             setPurchasing(false);
-            return;
+            return false;
         }
 
         setReceiptItems(
@@ -168,6 +217,7 @@ export default function CartPage() {
         );
 
         addNotification(userId, `Compra confirmada: ${desc} - L ${subtotal.toFixed(2)}`);
+        toastSuccess(`Compra confirmada: ${desc} - L ${subtotal.toFixed(2)}`);
         clearCart();
         setConfirmOpen(false);
         setPurchasing(false);
@@ -192,6 +242,8 @@ export default function CartPage() {
         } else {
             setReceiptOpen(true);
         }
+
+        return true;
     };
 
     return (
@@ -210,20 +262,52 @@ export default function CartPage() {
                     </Stack>
 
                     {userRole === 'lider' && (
-                        <FormControl size="small" sx={{ mb: 2, minWidth: 280 }}>
-                            <InputLabel>Salon destino</InputLabel>
-                            <Select
-                                value={selectedSalon}
-                                label="Salon destino"
-                                onChange={(e) => setSelectedSalon(e.target.value)}
-                            >
-                                {salones.map((s) => (
-                                    <MenuItem key={s.id} value={s.id}>
-                                        {s.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
+                        <Stack spacing={1.5} sx={{ mb: 2 }}>
+                            <FormControl size="small" sx={{ minWidth: 280 }}>
+                                <InputLabel>Tipo de compra</InputLabel>
+                                <Select
+                                    value={purchaseType}
+                                    label="Tipo de compra"
+                                    onChange={(e) => setPurchaseType(e.target.value as PurchaseType)}
+                                >
+                                    <MenuItem value="personal">Personal (precio lider)</MenuItem>
+                                    <MenuItem value="salon">Para un salon (precio salon)</MenuItem>
+                                    <MenuItem value="consumidor_final">Consumidor final (precio publico)</MenuItem>
+                                </Select>
+                            </FormControl>
+                            {purchaseType === 'salon' && (
+                                <FormControl size="small" sx={{ minWidth: 280 }}>
+                                    <InputLabel>Salon destino</InputLabel>
+                                    <Select
+                                        value={selectedSalon}
+                                        label="Salon destino"
+                                        onChange={(e) => setSelectedSalon(Number(e.target.value))}
+                                    >
+                                        {salones.map((s) => (
+                                            <MenuItem key={s.id} value={s.id}>
+                                                {s.name}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            )}
+                            {purchaseType === 'consumidor_final' && (
+                                <FormControl size="small" sx={{ minWidth: 280 }}>
+                                    <InputLabel>Consumidor destino</InputLabel>
+                                    <Select
+                                        value={selectedConsumidor}
+                                        label="Consumidor destino"
+                                        onChange={(e) => setSelectedConsumidor(Number(e.target.value))}
+                                    >
+                                        {consumidoresFinales.map((c) => (
+                                            <MenuItem key={c.id} value={c.id}>
+                                                {c.name}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            )}
+                        </Stack>
                     )}
 
                     <Stack spacing={1.5}>
@@ -301,11 +385,15 @@ export default function CartPage() {
                             </Typography>
                             <Divider sx={{ my: 1.5 }} />
                             <Stack spacing={1}>
-                                {userRole === 'lider' && salon && (
-                                    <Stack direction="row" justifyContent="space-between">
-                                        <Typography color="text.secondary">Salon</Typography>
-                                        <Typography sx={{ fontWeight: 800 }}>{salon.name}</Typography>
-                                    </Stack>
+                                {userRole === 'lider' && (
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography color="text.secondary">Tipo</Typography>
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        {purchaseType === 'personal' && 'Personal'}
+                                        {purchaseType === 'salon' && (salon?.name ?? 'Salon')}
+                                        {purchaseType === 'consumidor_final' && (consumidor?.name ?? 'Consumidor final')}
+                                    </Typography>
+                                </Stack>
                                 )}
                                 <Stack direction="row" justifyContent="space-between">
                                     <Typography color="text.secondary">Subtotal</Typography>
@@ -333,15 +421,17 @@ export default function CartPage() {
                 </Box>
             </Stack>
 
-            <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="xs" fullWidth>
+            <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>Confirmar compra</DialogTitle>
                 <DialogContent>
                     <Typography variant="body2" color="text.secondary">
                         Se acreditaran puntos y se limpiara el carrito.
                     </Typography>
-                    {userRole === 'lider' && salon && (
+                    {userRole === 'lider' && (
                         <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>
-                            Pedido para: {salon.name}
+                            {purchaseType === 'personal' && 'Compra personal (precio lider)'}
+                            {purchaseType === 'salon' && `Pedido para: ${salon?.name ?? ''} (precio salon)`}
+                            {purchaseType === 'consumidor_final' && `Pedido para: ${consumidor?.name ?? ''} (precio publico)`}
                         </Typography>
                     )}
                     <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, bgcolor: 'background.default' }}>
@@ -368,6 +458,31 @@ export default function CartPage() {
                             Puntos: +{pointsEarned}
                         </Typography>
                     </Box>
+
+                    <Box sx={{ mt: 2.5 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>
+                            Direccion de entrega
+                        </Typography>
+                        <TextField
+                            fullWidth
+                            size="small"
+                            multiline
+                            minRows={2}
+                            placeholder="Escribe la direccion donde se entregara el pedido..."
+                            value={shippingAddress}
+                            onChange={(e) => setShippingAddress(e.target.value)}
+                        />
+                        <Box sx={{ mt: 1.5 }}>
+                            <LocationPicker
+                                latitude={shippingLatitude}
+                                longitude={shippingLongitude}
+                                onChange={(lat, lng) => {
+                                    setShippingLatitude(lat);
+                                    setShippingLongitude(lng);
+                                }}
+                            />
+                        </Box>
+                    </Box>
                 </DialogContent>
                 <DialogActions sx={{ flexDirection: 'column', gap: 1, px: 2, pb: 2 }}>
                     <Stack direction="row" spacing={1} sx={{ width: '100%' }}>
@@ -393,11 +508,24 @@ export default function CartPage() {
             <TodoPagoPaymentDialog
                 open={paymentOpen}
                 onClose={() => setPaymentOpen(false)}
-                amount={grandTotal}
+                amount={taxable}
                 currency="hnl"
-                customerName={userRole === 'lider' && salon ? salon.name : user.name}
-                customerEmail={userRole === 'lider' && salon ? salon.email : user.email}
-                onPaymentSuccess={(transaccionId: number, cardMasked?: string) => finalizePurchase(transaccionId, cardMasked)}
+                taxes={taxable * 0.15}
+                discount={totalDiscount}
+                customerName={
+                    userRole === 'lider' && purchaseType === 'salon' && salon ? salon.name
+                    : userRole === 'lider' && purchaseType === 'consumidor_final' && consumidor ? consumidor.name
+                    : user.name
+                }
+                customerEmail={
+                    userRole === 'lider' && purchaseType === 'salon' && salon ? salon.email
+                    : userRole === 'lider' && purchaseType === 'consumidor_final' && consumidor ? consumidor.email
+                    : user.email
+                }
+                onPaymentSuccess={async (transaccionId: number, cardMasked?: string) => {
+                    const ok = await finalizePurchase(transaccionId, cardMasked);
+                    if (!ok) throw new Error('Error al crear el pedido');
+                }}
             />
 
             <Dialog open={!!imageModal} onClose={() => setImageModal('')}>

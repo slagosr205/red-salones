@@ -6,6 +6,7 @@ use App\Services\TodoPagoClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class TodoPagoController extends Controller
 {
@@ -24,6 +25,11 @@ class TodoPagoController extends Controller
                 'data' => $res->json(),
             ], $res->successful() ? 200 : 502);
         } catch (\Throwable $e) {
+            Log::error('TodoPago health fallo', [
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'ok' => false,
                 'message' => 'No se pudo conectar a TodoPago.',
@@ -56,6 +62,11 @@ class TodoPagoController extends Controller
                 ],
             ]);
         } catch (\Throwable $e) {
+            Log::error('TodoPago login fallo', [
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Fallo login TodoPago.',
@@ -91,7 +102,7 @@ class TodoPagoController extends Controller
         $payload['ipAddress'] = $payload['ipAddress'] ?? $request->ip();
 
         // Ensure these cannot be overridden from the client.
-        unset($payload['commerceID'], $payload['terminalID']);
+        unset($payload['commerceID'], $payload['terminalID'], $payload['terminalNbr']);
 
         try {
             $resp = $client->pay($payload, contentMode: 'json');
@@ -104,6 +115,11 @@ class TodoPagoController extends Controller
 
             return response()->json($resp, $status);
         } catch (\Throwable $e) {
+            Log::error('TodoPago pay fallo', [
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Fallo pago TodoPago.',
@@ -128,6 +144,7 @@ class TodoPagoController extends Controller
             'externalReference' => ['nullable', 'string', 'max:255'],
             'comment' => ['nullable', 'string', 'max:255'],
             'taxes' => ['nullable', 'numeric', 'min:0'],
+            'discount' => ['nullable', 'numeric', 'min:0'],
             'tips' => ['nullable', 'numeric', 'min:0'],
             'ipAddress' => ['nullable', 'string', 'max:64'],
         ]);
@@ -144,6 +161,11 @@ class TodoPagoController extends Controller
 
             return response()->json($resp, $status);
         } catch (\Throwable $e) {
+            Log::error('TodoPago direct-payment fallo', [
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Fallo pago directo TodoPago: '.$e->getMessage(),
@@ -167,6 +189,12 @@ class TodoPagoController extends Controller
 
             return response()->json($resp, $status);
         } catch (\Throwable $e) {
+            Log::error('TodoPago reversal fallo', [
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'transactionID' => $validated['transactionID'] ?? null,
+            ]);
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Fallo reversión TodoPago: '.$e->getMessage(),
@@ -195,6 +223,11 @@ class TodoPagoController extends Controller
 
             return response()->json($resp, $status);
         } catch (\Throwable $e) {
+            Log::error('TodoPago customer-register fallo', [
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Fallo registro de cliente TodoPago: '.$e->getMessage(),
@@ -224,6 +257,11 @@ class TodoPagoController extends Controller
 
             return response()->json($resp, $status);
         } catch (\Throwable $e) {
+            Log::error('TodoPago account-register fallo', [
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Fallo registro de cuenta TodoPago: '.$e->getMessage(),
@@ -246,6 +284,12 @@ class TodoPagoController extends Controller
 
             return response()->json($resp, 200);
         } catch (\Throwable $e) {
+            Log::error('TodoPago account-list fallo', [
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'customerID' => request()->query('customerID'),
+            ]);
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Fallo account-list TodoPago.',

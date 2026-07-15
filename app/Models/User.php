@@ -80,4 +80,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Redemption::class);
     }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
 }

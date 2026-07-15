@@ -1,7 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import {
-    Alert,
     Autocomplete,
     Box,
     Button,
@@ -18,7 +17,6 @@ import {
     MenuItem,
     Select,
     Slider,
-    Snackbar,
     Stack,
     Switch,
     TextField,
@@ -28,6 +26,7 @@ import { FilterList, Search } from '@mui/icons-material';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { addToCart } from '@/rc/cart';
+import { toastSuccess } from '@/rc/toast';
 import { refreshActivePromotions, getActivePromotions } from '@/rc/promotions';
 import { usePage } from '@inertiajs/react';
 
@@ -60,8 +59,6 @@ export default function ProductsPage() {
     const userRole: string = auth?.user?.role ?? 'salon';
     const userClientType = auth?.user?.client_type;
     const [filtersOpen, setFiltersOpen] = useState(false);
-    const [snackbarOpen, setSnackbarOpen] = useState(false);
-    const [snackbarProduct, setSnackbarProduct] = useState('');
     const [products, setProducts] = useState<any[]>([]);
     const [promoProductIds, setPromoProductIds] = useState<Set<string>>(new Set());
     const [searchValue, setSearchValue] = useState('');
@@ -119,7 +116,7 @@ export default function ProductsPage() {
             .filter((p) => (brand ? p.brand === brand : true))
             .filter((p) => (onlyPromos ? promoProductIds.has(p.id) : true))
             .filter((p) => effectivePrice(p, userRole, userClientType) >= price[0] && effectivePrice(p, userRole, userClientType) <= price[1]);
-    }, [query, category, brand, onlyPromos, price, products]);
+    }, [query, category, brand, onlyPromos, price, products, userRole, userClientType]);
 
     const filters = (
         <Box sx={{ p: 2.25, width: 320 }}>
@@ -318,6 +315,25 @@ export default function ProductsPage() {
                                         {p.points} puntos
                                     </Typography>
                                 </Stack>
+                                {(userRole === 'lider' || userRole === 'admin') && (
+                                    <Stack direction="row" spacing={1.5} sx={{ mt: 0.5 }}>
+                                        {p.leader_price != null && (
+                                            <Typography variant="caption" color="success.main" sx={{ fontWeight: 700 }}>
+                                                Lider: L {Number(p.leader_price).toFixed(2)}
+                                            </Typography>
+                                        )}
+                                        {p.price != null && (
+                                            <Typography variant="caption" color="text.secondary">
+                                                Salon: L {Number(p.price).toFixed(2)}
+                                            </Typography>
+                                        )}
+                                        {p.public_price != null && (
+                                            <Typography variant="caption" color="warning.main">
+                                                Publico: L {Number(p.public_price).toFixed(2)}
+                                            </Typography>
+                                        )}
+                                    </Stack>
+                                )}
                             </CardContent>
                             <CardActions sx={{ px: 2, pb: 2 }}>
                                 <Button
@@ -325,8 +341,7 @@ export default function ProductsPage() {
                                     variant="contained"
                                     onClick={() => {
                                         addToCart(p);
-                                        setSnackbarProduct(p.name);
-                                        setSnackbarOpen(true);
+                                        toastSuccess(`${p.name} agregado al carrito`);
                                     }}
                                 >
                                     Comprar
@@ -346,21 +361,6 @@ export default function ProductsPage() {
                 </Box>
             )}
 
-            <Snackbar
-                open={snackbarOpen}
-                autoHideDuration={2500}
-                onClose={() => setSnackbarOpen(false)}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-                <Alert
-                    severity="success"
-                    variant="filled"
-                    onClose={() => setSnackbarOpen(false)}
-                    sx={{ width: '100%' }}
-                >
-                    {snackbarProduct} agregado al carrito
-                </Alert>
-            </Snackbar>
         </AuthenticatedLayout>
     );
 }

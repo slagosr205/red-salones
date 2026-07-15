@@ -22,6 +22,7 @@ import {
     Instagram,
     YouTube,
     Twitter,
+    PlayCircle,
 } from '@mui/icons-material';
 import {
     Avatar,
@@ -276,7 +277,21 @@ export default function Welcome({
                                     </Box>
                                 </Stack>
 
-                                <Stack direction="row" spacing={1}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                    <Button
+                                        component={Link}
+                                        href={route('tutorials')}
+                                        startIcon={<PlayCircle />}
+                                        variant="text"
+                                        sx={{
+                                            color: 'rgba(255,255,255,0.85)',
+                                            fontWeight: 700,
+                                            textTransform: 'none',
+                                            '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)' },
+                                        }}
+                                    >
+                                        Tutoriales
+                                    </Button>
                                     {auth.user ? (
                                         <Button
                                             component={Link}
@@ -1136,6 +1151,78 @@ export default function Welcome({
                                     </Typography>
                                 </Stack>
                             </Stack>
+                        </SlideIn>
+                    </Box>
+
+                    {/* ─── Video Tutorial CTA ─── */}
+                    <Box component="section" sx={{ mb: 10 }}>
+                        <SlideIn>
+                            <Card
+                                sx={{
+                                    overflow: 'hidden',
+                                    position: 'relative',
+                                    borderRadius: 3,
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        background: 'linear-gradient(135deg, #0F4F63 0%, #BFA16B 100%)',
+                                        opacity: 0.92,
+                                    }}
+                                />
+                                <CardContent sx={{ position: 'relative', p: { xs: 3, md: 5 }, textAlign: 'center' }}>
+                                    <Stack spacing={2.5} alignItems="center">
+                                        <Box
+                                            sx={{
+                                                p: 2,
+                                                borderRadius: '50%',
+                                                bgcolor: 'rgba(255,255,255,0.15)',
+                                                display: 'grid',
+                                                placeItems: 'center',
+                                            }}
+                                        >
+                                            <PlayCircle sx={{ fontSize: 56, color: 'common.white' }} />
+                                        </Box>
+                                        <Typography variant="h4" sx={{ fontWeight: 950, color: 'common.white' }}>
+                                            Video Tutoriales
+                                        </Typography>
+                                        <Typography
+                                            variant="body1"
+                                            sx={{ color: 'rgba(255,255,255,0.85)', maxWidth: 560, lineHeight: 1.7 }}
+                                        >
+                                            Aprende a sacar el maximo provecho de la plataforma con nuestros
+                                            videos guia paso a paso. Dashboards, pedidos, puntos y mas.
+                                        </Typography>
+                                        <Button
+                                            component={Link}
+                                            href={route('tutorials')}
+                                            variant="contained"
+                                            size="large"
+                                            startIcon={<PlayCircle />}
+                                            sx={{
+                                                mt: 1,
+                                                bgcolor: 'common.white',
+                                                color: '#0F4F63',
+                                                fontWeight: 800,
+                                                px: 4,
+                                                py: 1.5,
+                                                fontSize: '1rem',
+                                                boxShadow: '0 8px 30px rgba(0,0,0,0.18)',
+                                                transition: 'transform 160ms ease, box-shadow 160ms ease',
+                                                '&:hover': {
+                                                    transform: 'translateY(-2px)',
+                                                    boxShadow: '0 14px 40px rgba(0,0,0,0.25)',
+                                                    bgcolor: '#f5f5f5',
+                                                },
+                                            }}
+                                        >
+                                            Ver Tutoriales
+                                        </Button>
+                                    </Stack>
+                                </CardContent>
+                            </Card>
                         </SlideIn>
                     </Box>
 

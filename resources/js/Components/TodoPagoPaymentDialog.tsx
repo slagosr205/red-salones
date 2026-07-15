@@ -18,9 +18,11 @@ type Props = {
     onClose: () => void;
     amount: number;
     currency?: string;
+    taxes?: number;
+    discount?: number;
     customerName: string;
     customerEmail: string;
-    onPaymentSuccess: (transaccionId: number, cardMasked?: string) => void;
+    onPaymentSuccess: (transaccionId: number, cardMasked?: string) => Promise<void>;
 };
 
 export default function TodoPagoPaymentDialog({
@@ -28,6 +30,8 @@ export default function TodoPagoPaymentDialog({
     onClose,
     amount,
     currency = 'hnl',
+    taxes,
+    discount,
     customerName,
     customerEmail,
     onPaymentSuccess,
@@ -100,8 +104,11 @@ export default function TodoPagoPaymentDialog({
                 cvc: c,
                 amount,
                 currency,
+                taxes,
+                discount,
                 customerName,
                 customerEmail,
+                externalReference: 'rc-' + Date.now(),
             });
 
             const body = res.data;
@@ -112,7 +119,7 @@ export default function TodoPagoPaymentDialog({
                     const voucher = body.data?.voucher ?? [];
                     const cardEntry = voucher.find((v: any) => v.name === 'Tarjeta');
                     const cardMasked = cardEntry?.value ?? undefined;
-                    onPaymentSuccess(transaccionID, cardMasked);
+                    await onPaymentSuccess(transaccionID, cardMasked);
                     resetForm();
                     onClose();
                     return;
@@ -141,7 +148,7 @@ export default function TodoPagoPaymentDialog({
                 </Typography>
                 <Box sx={{ mb: 2 }}>
                     <Typography variant="h5" sx={{ fontWeight: 900 }}>
-                        Total: L {amount.toFixed(2)}
+                        Total: L {(amount + (taxes ?? 0)).toFixed(2)}
                     </Typography>
                 </Box>
 
@@ -206,7 +213,7 @@ export default function TodoPagoPaymentDialog({
                 </Button>
                 <Button variant="contained" onClick={handleSubmit} disabled={processing}>
                     {processing ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
-                    {processing ? 'Procesando...' : `Pagar L ${amount.toFixed(2)}`}
+                    {processing ? 'Procesando...' : `Pagar L ${(amount + (taxes ?? 0)).toFixed(2)}`}
                 </Button>
             </DialogActions>
         </Dialog>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Stripe\Customer;
 use Stripe\PaymentIntent;
 use Stripe\Stripe;
@@ -44,6 +45,14 @@ class PaymentController extends Controller
                 'clientSecret' => $intent->client_secret,
             ]);
         } catch (\Exception $e) {
+            Log::error('Stripe createPaymentIntent fallo', [
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'amount' => $validated['amount'] ?? null,
+                'currency' => $validated['currency'] ?? null,
+                'customerEmail' => $validated['customerEmail'] ?? null,
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error al crear el pago: '.$e->getMessage(),

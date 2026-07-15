@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class TodoPagoClient
 {
@@ -56,14 +57,36 @@ class TodoPagoClient
         return (string) config('services.todopago.payment_reversal_path');
     }
 
-    private function commerceId(): int
+    /**
+     * @param  array<string,mixed>  $data
+     * @return array<string,mixed>
+     */
+    private function maskSensitive(array $data): array
     {
-        return (int) config('services.todopago.commerce_id');
+        $masked = $data;
+        foreach (['password', 'cvc', 'cvv', 'securityCode'] as $field) {
+            if (isset($masked[$field])) {
+                $masked[$field] = '******';
+            }
+        }
+        foreach (['accountNumber', 'cardNumber', 'pan'] as $field) {
+            if (isset($masked[$field]) && is_string($masked[$field])) {
+                $len = strlen($masked[$field]);
+                $masked[$field] = str_repeat('*', max(0, $len - 4)).substr($masked[$field], -4);
+            }
+        }
+
+        return $masked;
     }
 
-    private function terminalId(): int
+    private function commerceId(): string
     {
-        return (int) config('services.todopago.terminal');
+        return (string) config('services.todopago.commerce_id');
+    }
+
+    private function terminalId(): string
+    {
+        return (string) config('services.todopago.terminal');
     }
 
     /**
@@ -106,6 +129,12 @@ class TodoPagoClient
                 $body = substr($body, 0, 800).'...';
             }
 
+            Log::error('TodoPago login HTTP error', [
+                'status' => $res->status(),
+                'response' => $body,
+                'path' => $path,
+            ]);
+
             throw new \RuntimeException('TodoPago login HTTP '.$res->status().': '.($body ?: '(empty body)'));
         }
 
@@ -117,6 +146,13 @@ class TodoPagoClient
 
         if (! is_string($token) || $token === '') {
             $keys = is_array($json) ? implode(',', array_slice(array_keys($json), 0, 40)) : 'n/a';
+
+            Log::error('TodoPago login no devolvio token', [
+                'response_keys' => $keys,
+                'response' => $json,
+                'status' => $res->status(),
+            ]);
+
             throw new \RuntimeException('TodoPago login no devolvio token (keys: '.$keys.').');
         }
 
@@ -175,7 +211,8 @@ class TodoPagoClient
 
         // Ensure commerce/terminal IDs are present.
         $payload = Arr::add($payload, 'commerceID', $this->commerceId());
-        $payload = Arr::add($payload, 'terminalID', $this->terminalId());
+        $payload = Arr::add($payload, 'terminalNbr', $this->terminalId());
+        $payload['currency'] = strtoupper($payload['currency'] ?? 'HNL');
 
         $res = Http::baseUrl($this->baseUrl())
             ->acceptJson()
@@ -190,7 +227,22 @@ class TodoPagoClient
 
         $json = $res->json();
         if (! is_array($json)) {
-            throw new \RuntimeException('Respuesta invalida de TodoPago.');
+            Log::error('TodoPago pay respuesta invalida', [
+                'status' => $res->status(),
+                'body' => $res->body(),
+                'payload' => $this->maskSensitive($payload),
+                'path' => $this->paymentPath(),
+            ]);
+            throw new \RuntimeException('Respuesta invalida de TodoPago pay.');
+        }
+
+        if (! $res->successful()) {
+            Log::error('TodoPago pay HTTP error', [
+                'status' => $res->status(),
+                'response' => $json,
+                'payload' => $this->maskSensitive($payload),
+                'path' => $this->paymentPath(),
+            ]);
         }
 
         return $json;
@@ -225,11 +277,22 @@ class TodoPagoClient
 
         if (! $res->successful()) {
             $body = $res->body();
+            Log::error('TodoPago customer-register HTTP error', [
+                'status' => $res->status(),
+                'response' => $body,
+                'payload' => $this->maskSensitive($data),
+                'path' => $this->customerRegisterPath(),
+            ]);
             throw new \RuntimeException('TodoPago customer-register HTTP '.$res->status().': '.($body ?: '(empty body)'));
         }
 
         $json = $res->json();
         if (! is_array($json)) {
+            Log::error('TodoPago customer-register respuesta invalida', [
+                'status' => $res->status(),
+                'body' => $res->body(),
+                'payload' => $this->maskSensitive($data),
+            ]);
             throw new \RuntimeException('Respuesta invalida de TodoPago customer-register.');
         }
 
@@ -264,11 +327,22 @@ class TodoPagoClient
 
         if (! $res->successful()) {
             $body = $res->body();
+            Log::error('TodoPago account-register HTTP error', [
+                'status' => $res->status(),
+                'response' => $body,
+                'payload' => $this->maskSensitive($data),
+                'path' => $this->accountRegisterPath(),
+            ]);
             throw new \RuntimeException('TodoPago account-register HTTP '.$res->status().': '.($body ?: '(empty body)'));
         }
 
         $json = $res->json();
         if (! is_array($json)) {
+            Log::error('TodoPago account-register respuesta invalida', [
+                'status' => $res->status(),
+                'body' => $res->body(),
+                'payload' => $this->maskSensitive($data),
+            ]);
             throw new \RuntimeException('Respuesta invalida de TodoPago account-register.');
         }
 
@@ -289,7 +363,14 @@ class TodoPagoClient
         }
 
         $data = Arr::add($data, 'commerceID', $this->commerceId());
-        $data = Arr::add($data, 'terminalID', $this->terminalId());
+        $data = Arr::add($data, 'terminalNbr', $this->terminalId());
+        $data['currency'] = strtoupper($data['currency'] ?? 'HNL');
+
+        Log::info('TodoPago direct-payment request', [
+            'payload' => $this->maskSensitive($data),
+            'path' => $this->directPaymentPath(),
+            'url' => $this->baseUrl().$this->directPaymentPath(),
+        ]);
 
         $res = Http::baseUrl($this->baseUrl())
             ->acceptJson()
@@ -304,11 +385,22 @@ class TodoPagoClient
 
         if (! $res->successful()) {
             $body = $res->body();
+            Log::error('TodoPago direct-payment HTTP error', [
+                'status' => $res->status(),
+                'response' => $body,
+                'payload' => $this->maskSensitive($data),
+                'path' => $this->directPaymentPath(),
+            ]);
             throw new \RuntimeException('TodoPago direct-payment HTTP '.$res->status().': '.($body ?: '(empty body)'));
         }
 
         $json = $res->json();
         if (! is_array($json)) {
+            Log::error('TodoPago direct-payment respuesta invalida', [
+                'status' => $res->status(),
+                'body' => $res->body(),
+                'payload' => $this->maskSensitive($data),
+            ]);
             throw new \RuntimeException('Respuesta invalida de TodoPago direct-payment.');
         }
 
@@ -341,7 +433,22 @@ class TodoPagoClient
 
         $json = $res->json();
         if (! is_array($json)) {
+            Log::error('TodoPago payment-reversal respuesta invalida', [
+                'status' => $res->status(),
+                'body' => $res->body(),
+                'payload' => $this->maskSensitive($data),
+                'path' => $this->paymentReversalPath(),
+            ]);
             throw new \RuntimeException('Respuesta invalida de TodoPago payment-reversal.');
+        }
+
+        if (! $res->successful()) {
+            Log::error('TodoPago payment-reversal HTTP error', [
+                'status' => $res->status(),
+                'response' => $json,
+                'payload' => $this->maskSensitive($data),
+                'path' => $this->paymentReversalPath(),
+            ]);
         }
 
         return $json;
@@ -388,11 +495,23 @@ class TodoPagoClient
             if (is_string($body) && strlen($body) > 800) {
                 $body = substr($body, 0, 800).'...';
             }
+            Log::error('TodoPago account-list HTTP error', [
+                'status' => $res->status(),
+                'response' => $body,
+                'customerID' => $customerId,
+                'query' => $query,
+                'path' => $this->accountListPath(),
+            ]);
             throw new \RuntimeException('TodoPago account-list HTTP '.$res->status().': '.($body ?: '(empty body)'));
         }
 
         $json = $res->json();
         if (! is_array($json)) {
+            Log::error('TodoPago account-list respuesta invalida', [
+                'status' => $res->status(),
+                'body' => $res->body(),
+                'customerID' => $customerId,
+            ]);
             throw new \RuntimeException('Respuesta invalida de TodoPago account-list.');
         }
 

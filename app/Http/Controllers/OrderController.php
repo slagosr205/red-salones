@@ -7,9 +7,11 @@ use App\Models\InventoryMovement;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\TodoPagoClient;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,7 +25,14 @@ class OrderController extends Controller
         $orders = Order::query()
             ->with(['user:id,name,email', 'salon:id,name,email'])
             ->withCount('items')
-            ->when(! $isAdmin, fn ($q) => $q->where('user_id', $authUser->id))
+            ->when(! $isAdmin, function ($q) use ($authUser) {
+                if ($authUser->role === User::ROLE_LIDER) {
+                    $salonIds = User::where('leader_id', $authUser->id)->pluck('id');
+                    $q->whereIn('user_id', $salonIds);
+                } else {
+                    $q->where('user_id', $authUser->id);
+                }
+            })
             ->orderByDesc('created_at')
             ->get();
 
@@ -45,10 +54,10 @@ class OrderController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, TodoPagoClient $todopago): JsonResponse|RedirectResponse
     {
         $validated = $request->validate([
-            'salon_id' => ['nullable', 'exists:users,id'],
+            'salon_id' => ['nullable', 'integer'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_name' => ['required', 'string', 'max:255'],
             'items.*.product_id' => ['nullable', 'string', 'max:50'],
@@ -71,6 +80,9 @@ class OrderController extends Controller
             'customer_name' => ['required', 'string', 'max:255'],
             'customer_email' => ['required', 'string', 'email', 'max:255'],
             'notes' => ['nullable', 'string'],
+            'shipping_address' => ['nullable', 'string', 'max:500'],
+            'shipping_latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'shipping_longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ]);
 
         $authUser = $request->user();
@@ -90,6 +102,12 @@ class OrderController extends Controller
         }
 
         try {
+            Log::info('Creando pedido', [
+                'user_id' => $authUser->id,
+                'items_count' => count($validated['items']),
+                'grand_total' => $validated['grand_total'],
+            ]);
+
             $order = DB::transaction(function () use ($validated, $authUser) {
                 $year = now()->format('Y');
                 $lastOrder = Order::query()
@@ -119,6 +137,9 @@ class OrderController extends Controller
                     'customer_name' => $validated['customer_name'],
                     'customer_email' => $validated['customer_email'],
                     'notes' => $validated['notes'] ?? null,
+                    'shipping_address' => $validated['shipping_address'] ?? null,
+                    'shipping_latitude' => $validated['shipping_latitude'] ?? null,
+                    'shipping_longitude' => $validated['shipping_longitude'] ?? null,
                 ]);
 
                 $itemsData = array_map(fn ($item) => [
@@ -164,11 +185,74 @@ class OrderController extends Controller
                 return $order->load(['user:id,name,email', 'salon:id,name,email']);
             });
 
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'ok' => true,
+                    'order' => $order,
+                    'message' => 'Pedido #'.$order->order_number.' creado correctamente.',
+                ]);
+            }
+
             return redirect()->route('rc.orders')
                 ->with('success', 'Pedido #'.$order->order_number.' creado correctamente.');
         } catch (\RuntimeException $e) {
+            $this->tryReversePayment($todopago, $validated);
+            Log::warning('Error al crear pedido (RuntimeException)', [
+                'message' => $e->getMessage(),
+                'user_id' => $authUser->id,
+            ]);
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+
             return redirect()->back()
                 ->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            $this->tryReversePayment($todopago, $validated);
+            Log::error('Error inesperado al crear pedido', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'user_id' => $authUser->id,
+            ]);
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Error inesperado al crear el pedido. Contacta al administrador.',
+                ], 500);
+            }
+
+            return redirect()->back()
+                ->with('error', 'Error inesperado al crear el pedido. Contacta al administrador.');
+        }
+    }
+
+    private function tryReversePayment(TodoPagoClient $todopago, array $validated): void
+    {
+        $transaccionId = $validated['todopago_transaccion_id'] ?? null;
+        if (empty($transaccionId)) {
+            return;
+        }
+
+        try {
+            $todopago->paymentReversal([
+                'transactionID' => (int) $transaccionId,
+                'externalReference' => 'reversal-auto-'.now()->timestamp,
+            ], 'json');
+            Log::info('Pago revertido automaticamente por fallo en creacion de orden', [
+                'todopago_transaccion_id' => $transaccionId,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Fallo al revertir pago automaticamente', [
+                'todopago_transaccion_id' => $transaccionId,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -214,6 +298,14 @@ class OrderController extends Controller
                 $order->todopago_reversed_at = now();
                 $order->save();
             } catch (\Throwable $e) {
+                Log::error('TodoPago reversal en cancelacion de orden fallo', [
+                    'exception' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'todopago_transaccion_id' => $order->todopago_transaccion_id,
+                ]);
+
                 $order->todopago_reversal_status = 'error';
                 $order->todopago_reversal_response = $e->getMessage();
                 $order->todopago_reversed_at = now();
@@ -243,8 +335,21 @@ class OrderController extends Controller
         $user = request()->user();
         $isAdmin = $user->role === User::ROLE_ADMIN;
 
-        if (! $isAdmin && $order->user_id !== $user->id) {
-            abort(403, 'No tienes permiso para ver este pedido.');
+        if ($isAdmin) {
+            return;
         }
+
+        if ($order->user_id === $user->id) {
+            return;
+        }
+
+        if ($user->role === User::ROLE_LIDER) {
+            $salonIds = User::where('leader_id', $user->id)->pluck('id');
+            if ($salonIds->contains($order->user_id)) {
+                return;
+            }
+        }
+
+        abort(403, 'No tienes permiso para ver este pedido.');
     }
 }

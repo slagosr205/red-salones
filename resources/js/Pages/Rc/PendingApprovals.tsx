@@ -1,10 +1,12 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import {
+    Alert,
     Box,
     Button,
     Card,
     CardContent,
+    Chip,
     FormControl,
     InputLabel,
     MenuItem,
@@ -21,27 +23,46 @@ type PendingUser = {
     email: string;
     leader_id: number | null;
     created_at: string;
+    orders_count: number;
 };
 
 export default function PendingApprovals() {
-    const props = usePage().props as unknown as { pending: PendingUser[] };
-    const { pending } = props;
+    const props = usePage().props as unknown as { pending: PendingUser[]; membershipPrice: number };
+    const { pending, membershipPrice } = props;
     const [clientTypes, setClientTypes] = useState<Record<number, string>>({});
+    const [paymentMethods, setPaymentMethods] = useState<Record<number, string>>({});
 
     const handleApprove = (id: number) => {
         const clientType = clientTypes[id];
+        const paymentMethod = paymentMethods[id];
         if (!clientType) {
             alert('Selecciona el tipo de cliente (Salón o Consumidor Final) antes de aprobar.');
             return;
         }
-        router.post(route('rc.approve', id), { client_type: clientType });
+        if (!paymentMethod) {
+            alert('Selecciona el metodo de cobro de membresia antes de aprobar.');
+            return;
+        }
+        router.post(route('rc.approve', id), {
+            client_type: clientType,
+            payment_method: paymentMethod,
+        });
     };
 
     return (
         <AuthenticatedLayout header="Aprobaciones pendientes">
             <Head title="Aprobaciones pendientes" />
 
-            <Box sx={{ maxWidth: 640 }}>
+            <Box sx={{ maxWidth: 720 }}>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                    Al aprobar se generara automaticamente el pedido de membresia y se registrara el cobro.
+                    {membershipPrice > 0 && (
+                        <Typography component="span" sx={{ fontWeight: 700 }}>
+                            {' '}Precio: L {membershipPrice.toFixed(2)} + 15% ISV
+                        </Typography>
+                    )}
+                </Alert>
+
                 {pending.length === 0 && (
                     <Typography color="text.secondary">No hay solicitudes pendientes.</Typography>
                 )}
@@ -51,23 +72,40 @@ export default function PendingApprovals() {
                         <Card key={u.id}>
                             <CardContent>
                                 <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" spacing={1}>
-                                    <Box>
-                                        <Typography sx={{ fontWeight: 700 }}>{u.name}</Typography>
+                                    <Box sx={{ minWidth: 180 }}>
+                                        <Stack direction="row" spacing={1} alignItems="center">
+                                            <Typography sx={{ fontWeight: 700 }}>{u.name}</Typography>
+                                            {u.orders_count > 0 && (
+                                                <Chip label="Ya tiene pedido" size="small" color="success" variant="outlined" />
+                                            )}
+                                        </Stack>
                                         <Typography variant="body2" color="text.secondary">{u.email}</Typography>
                                         <Typography variant="caption" color="text.secondary">
                                             Solicitado: {new Date(u.created_at).toLocaleDateString()}
                                         </Typography>
                                     </Box>
-                                    <Stack direction="row" spacing={1} alignItems="center">
-                                        <FormControl size="small" sx={{ minWidth: 180 }}>
+                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                                        <FormControl size="small" sx={{ minWidth: 160 }}>
                                             <InputLabel>Tipo de cliente</InputLabel>
                                             <Select
                                                 value={clientTypes[u.id] ?? ''}
                                                 label="Tipo de cliente"
                                                 onChange={(e) => setClientTypes((prev) => ({ ...prev, [u.id]: e.target.value }))}
                                             >
-                                                <MenuItem value="salon">Salón</MenuItem>
+                                                <MenuItem value="salon">Salon</MenuItem>
                                                 <MenuItem value="consumidor_final">Consumidor Final</MenuItem>
+                                            </Select>
+                                        </FormControl>
+                                        <FormControl size="small" sx={{ minWidth: 160 }}>
+                                            <InputLabel>Cobro membresia</InputLabel>
+                                            <Select
+                                                value={paymentMethods[u.id] ?? ''}
+                                                label="Cobro membresia"
+                                                onChange={(e) => setPaymentMethods((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                                            >
+                                                <MenuItem value="efectivo">Efectivo</MenuItem>
+                                                <MenuItem value="tc">Tarjeta Credito</MenuItem>
+                                                <MenuItem value="td">Tarjeta Debito</MenuItem>
                                             </Select>
                                         </FormControl>
                                         <Button

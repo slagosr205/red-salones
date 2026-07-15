@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { refreshActivePromotions, getDiscountForProduct, getPromotionsForProduct, type Promotion } from '@/rc/promotions';
 import { addNotification } from '@/rc/notifications';
+import { toastSuccess, toastError } from '@/rc/toast';
 
 type Customer = {
     id: number;
@@ -222,7 +223,7 @@ export default function PosPage() {
             grand_total: grandTotal,
             points_earned: pointsEarned,
             customer_name: customerName,
-            customer_email: customer?.email ?? '',
+            customer_email: customer?.email || 'mostrador@probeautyhn.com',
             payment_method: paymentMethod,
         };
 
@@ -235,6 +236,7 @@ export default function PosPage() {
             await axios.post(route('rc.orders.store'), payload);
         } catch {
             addNotification(userId, 'Error al crear el pedido POS.');
+            toastError('Error al crear el pedido POS.');
             setPurchasing(false);
             return;
         }
@@ -249,6 +251,7 @@ export default function PosPage() {
         );
 
         addNotification(userId, `Venta POS confirmada: ${desc} - L ${subtotal.toFixed(2)}`);
+        toastSuccess(`Venta POS confirmada: ${desc} - L ${subtotal.toFixed(2)}`);
         setCart([]);
         setAmountReceived('');
         setCustomer(defaultCustomer);
