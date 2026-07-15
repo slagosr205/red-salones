@@ -14,6 +14,7 @@ import {
     TableCell,
     TableContainer,
     TableHead,
+    TablePagination,
     TableRow,
     TextField,
     Typography,
@@ -22,6 +23,7 @@ import {
     Add,
     Delete,
     Edit,
+    ImageNotSupported,
     Search,
     Star,
     StarBorder,
@@ -60,11 +62,18 @@ function scoreArticle(query: string, a: Article): number {
 
 export default function Articles({ articles }: { articles: Article[] }) {
     const [search, setSearch] = useState('');
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
 
     const filtered = useMemo(() => {
         if (!search.trim()) return articles;
         return articles.filter((a) => scoreArticle(search, a) > 0);
     }, [articles, search]);
+
+    const paginated = useMemo(
+        () => filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+        [filtered, page, rowsPerPage],
+    );
 
     return (
         <AuthenticatedLayout header="Artículos Publicitarios">
@@ -94,7 +103,7 @@ export default function Articles({ articles }: { articles: Article[] }) {
                     size="small"
                     placeholder="Buscar por nombre, marca, categoria..."
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => { setSearch(e.target.value); setPage(0); }}
                     slotProps={{
                         input: {
                             startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
@@ -113,6 +122,7 @@ export default function Articles({ articles }: { articles: Article[] }) {
                         <Table>
                                 <TableHead>
                                     <TableRow>
+                                        <TableCell sx={{ fontWeight: 800 }} width={72}></TableCell>
                                         <TableCell sx={{ fontWeight: 800 }}>Nombre</TableCell>
                                         <TableCell sx={{ fontWeight: 800 }}>Marca</TableCell>
                                         <TableCell sx={{ fontWeight: 800 }}>Categoría</TableCell>
@@ -126,8 +136,20 @@ export default function Articles({ articles }: { articles: Article[] }) {
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {filtered.map((a) => (
+                                    {paginated.map((a) => (
                                         <TableRow key={a.id} hover>
+                                            <TableCell>
+                                                {a.image_path ? (
+                                                    <Box
+                                                        component="img"
+                                                        src={`/storage/${a.image_path}`}
+                                                        alt={a.name}
+                                                        sx={{ width: 44, height: 44, borderRadius: 1, objectFit: 'cover' }}
+                                                    />
+                                                ) : (
+                                                    <ImageNotSupported sx={{ fontSize: 28, color: 'action.disabled' }} />
+                                                )}
+                                            </TableCell>
                                             <TableCell sx={{ fontWeight: 700 }}>{a.name}</TableCell>
                                             <TableCell>{a.brand ?? '—'}</TableCell>
                                             <TableCell>
@@ -189,7 +211,7 @@ export default function Articles({ articles }: { articles: Article[] }) {
                                 ))}
                                 {filtered.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
+                                        <TableCell colSpan={9} sx={{ textAlign: 'center', py: 4 }}>
                                             <Typography color="text.secondary">
                                                 {search ? 'Sin resultados para tu busqueda' : 'No hay artículos aún.'}
                                             </Typography>
@@ -199,6 +221,22 @@ export default function Articles({ articles }: { articles: Article[] }) {
                             </TableBody>
                         </Table>
                     </TableContainer>
+                    <TablePagination
+                        component="div"
+                        count={filtered.length}
+                        page={page}
+                        onPageChange={(_, p) => setPage(p)}
+                        rowsPerPage={rowsPerPage}
+                        onRowsPerPageChange={(e) => {
+                            setRowsPerPage(parseInt(e.target.value, 10));
+                            setPage(0);
+                        }}
+                        rowsPerPageOptions={[5, 10, 25, 50]}
+                        labelRowsPerPage="Artículos por página"
+                        labelDisplayedRows={({ from, to, count }) =>
+                            `Mostrando ${from}–${to} de ${count !== -1 ? count : `más de ${to}`}`
+                        }
+                    />
                 </CardContent>
             </Card>
         </AuthenticatedLayout>
