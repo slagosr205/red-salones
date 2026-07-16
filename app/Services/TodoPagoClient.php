@@ -94,20 +94,19 @@ class TodoPagoClient
      */
     public function login(): array
     {
-        $path = $this->loginPath();
-        if ($path === '') {
+        $url = rtrim(trim($this->baseUrl()), '/').$this->loginPath();
+        if ($this->loginPath() === '') {
             throw new \RuntimeException('TODOPAGO_LOGIN_PATH no configurado.');
         }
 
         $payload = [
-            'user' => (string) config('services.todopago.user'),
+            'user' => trim((string) config('services.todopago.user')),
             'password' => (string) config('services.todopago.password'),
-            'userType' => (int) config('services.todopago.user_type', '2'),
-            'version' => (string) config('services.todopago.version', ''),
+            'userType' => (string) config('services.todopago.user_type', '2'),
         ];
 
         $headers = [
-            // Not documented for login in your notes, but harmless if ignored.
+            'Accept' => 'application/json, text/plain, */*',
             'X-Content' => 'json',
         ];
 
@@ -116,12 +115,37 @@ class TodoPagoClient
             $headers['X-Tenant'] = $tenant;
         }
 
-        $res = Http::baseUrl($this->baseUrl())
-            ->acceptJson()
-            ->asJson()
+        $res = Http::withHeaders($headers)
+            ->withOptions([
+                'allow_redirects' => false,
+                'http_errors' => false,
+            ])
             ->timeout(20)
-            ->withHeaders($headers)
-            ->post($path, $payload);
+            ->withBody(
+                json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'application/json; charset=UTF-8'
+            )
+            ->post($url);
+
+        if ($res->redirect()) {
+            $location = $res->header('Location')[0] ?? '';
+            if ($location !== '') {
+                if (str_starts_with($location, '/')) {
+                    $location = rtrim($this->baseUrl(), '/').$location;
+                }
+                $res = Http::withHeaders($headers)
+                    ->withOptions([
+                        'allow_redirects' => false,
+                        'http_errors' => false,
+                    ])
+                    ->timeout(20)
+                    ->withBody(
+                        json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                        'application/json; charset=UTF-8'
+                    )
+                    ->post($location);
+            }
+        }
 
         if (! $res->successful()) {
             $body = $res->body();
@@ -132,7 +156,7 @@ class TodoPagoClient
             Log::error('TodoPago login HTTP error', [
                 'status' => $res->status(),
                 'response' => $body,
-                'path' => $path,
+                'path' => $url,
             ]);
 
             throw new \RuntimeException('TodoPago login HTTP '.$res->status().': '.($body ?: '(empty body)'));

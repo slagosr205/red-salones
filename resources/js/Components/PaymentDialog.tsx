@@ -35,12 +35,15 @@ export default function PaymentDialog({ open, onClose, amount, currency = 'hnl',
         setProcessing(true);
         setError(null);
 
+        const idempotencyKey = `pay_${customerEmail}_${amountCents}_${Date.now()}`;
+
         try {
             const res = await axios.post(route('rc.create-payment'), {
                 amount: amountCents,
                 currency,
                 customerName,
                 customerEmail,
+                idempotency_key: idempotencyKey,
             });
 
             const data = res.data;

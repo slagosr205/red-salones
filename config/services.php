@@ -41,7 +41,7 @@ return [
     ],
 
     'todopago' => [
-        'base_url' => env('TODOPAGO_BASE_URL', 'https://test-api.todopago.hn'),
+        'base_url' => env('TODOPAGO_BASE_URL', 'https://api.todopago.hn'),
         'login_path' => env('TODOPAGO_LOGIN_PATH', '/login'),
         'payment_path' => env('TODOPAGO_PAYMENT_PATH', '/pay/v1/payment'),
         'account_list_path' => env('TODOPAGO_ACCOUNT_LIST_PATH', '/pay/v1/account-list'),
