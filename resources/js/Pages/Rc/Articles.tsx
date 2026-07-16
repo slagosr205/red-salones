@@ -6,6 +6,7 @@ import {
     Card,
     CardContent,
     Chip,
+    CircularProgress,
     IconButton,
     InputAdornment,
     Stack,
@@ -28,7 +29,7 @@ import {
     Star,
     StarBorder,
 } from '@mui/icons-material';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 interface Article {
     id: number;
@@ -65,6 +66,19 @@ export default function Articles({ articles }: { articles: Article[] }) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
+    const [uploadingId, setUploadingId] = useState<number | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleImageUpload = (articleId: number, file: File) => {
+        const formData = new FormData();
+        formData.append('image', file);
+        setUploadingId(articleId);
+        router.post(route('rc.articles.update-image', articleId), formData, {
+            preserveState: true,
+            only: ['articles'],
+            onFinish: () => setUploadingId(null),
+        });
+    };
 
     const filtered = useMemo(() => {
         if (!search.trim()) return articles;
@@ -149,7 +163,29 @@ export default function Articles({ articles }: { articles: Article[] }) {
                                                         sx={{ width: 44, height: 44, borderRadius: 1, objectFit: 'cover', cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
                                                     />
                                                 ) : (
-                                                    <ImageNotSupported sx={{ fontSize: 28, color: 'action.disabled' }} />
+                                                    <IconButton
+                                                        size="small"
+                                                        component="label"
+                                                        disabled={uploadingId === a.id}
+                                                        title="Subir imagen"
+                                                        sx={{ border: '2px dashed', borderColor: 'action.active', borderRadius: 1, width: 44, height: 44 }}
+                                                    >
+                                                        {uploadingId === a.id ? (
+                                                            <CircularProgress size={20} />
+                                                        ) : (
+                                                            <ImageNotSupported sx={{ fontSize: 22, color: 'action.active' }} />
+                                                        )}
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            hidden
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleImageUpload(a.id, file);
+                                                                e.target.value = '';
+                                                            }}
+                                                        />
+                                                    </IconButton>
                                                 )}
                                             </TableCell>
                                             <TableCell sx={{ fontWeight: 700 }}>{a.name}</TableCell>

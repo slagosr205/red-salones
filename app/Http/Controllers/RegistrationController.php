@@ -81,6 +81,8 @@ class RegistrationController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'payment_method' => ['required', 'string', 'in:efectivo,tc,td'],
+            'todopago_transaccion_id' => ['nullable', 'integer'],
+            'todopago_card_number_masked' => ['nullable', 'string', 'max:20'],
         ]);
 
         $membershipPrice = $this->getEffectiveMembershipPrice();
@@ -124,6 +126,8 @@ class RegistrationController extends Controller
                 'customer_name' => $user->name,
                 'customer_email' => $user->email,
                 'notes' => 'Membresia — Kit de bienvenida incluido',
+                'todopago_transaccion_id' => $validated['todopago_transaccion_id'] ?? null,
+                'todopago_card_number_masked' => $validated['todopago_card_number_masked'] ?? null,
             ]);
 
             $orderItems = [];
@@ -191,6 +195,8 @@ class RegistrationController extends Controller
             $validated = $request->validate([
                 'client_type' => ['required', 'string', 'in:'.implode(',', User::CLIENT_TYPES)],
                 'payment_method' => ['required', 'string', 'in:efectivo,tc,td'],
+                'todopago_transaccion_id' => ['nullable', 'integer'],
+                'todopago_card_number_masked' => ['nullable', 'string', 'max:20'],
             ]);
 
             DB::transaction(function () use ($user, $validated) {
@@ -229,6 +235,8 @@ class RegistrationController extends Controller
                         'customer_name' => $user->name,
                         'customer_email' => $user->email,
                         'notes' => 'Membresia — Kit de bienvenida incluido',
+                        'todopago_transaccion_id' => $validated['todopago_transaccion_id'] ?? null,
+                        'todopago_card_number_masked' => $validated['todopago_card_number_masked'] ?? null,
                     ]);
 
                     $orderItems = [];

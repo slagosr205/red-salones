@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { CheckCircle, Cancel } from '@mui/icons-material';
 import { useState } from 'react';
+import TodoPagoPaymentDialog from '@/Components/TodoPagoPaymentDialog';
 
 type PendingUser = {
     id: number;
@@ -31,8 +32,9 @@ export default function PendingApprovals() {
     const { pending, membershipPrice } = props;
     const [clientTypes, setClientTypes] = useState<Record<number, string>>({});
     const [paymentMethods, setPaymentMethods] = useState<Record<number, string>>({});
+    const [paymentDialogUser, setPaymentDialogUser] = useState<PendingUser | null>(null);
 
-    const handleApprove = (id: number) => {
+    const handleApprove = (id: number, transaccionId?: number, cardMasked?: string) => {
         const clientType = clientTypes[id];
         const paymentMethod = paymentMethods[id];
         if (!clientType) {
@@ -43,10 +45,22 @@ export default function PendingApprovals() {
             alert('Selecciona el metodo de cobro de membresia antes de aprobar.');
             return;
         }
-        router.post(route('rc.approve', id), {
+        const payload: Record<string, any> = {
             client_type: clientType,
             payment_method: paymentMethod,
-        });
+        };
+        if (transaccionId) payload.todopago_transaccion_id = transaccionId;
+        if (cardMasked) payload.todopago_card_number_masked = cardMasked;
+        router.post(route('rc.approve', id), payload);
+    };
+
+    const handleApproveClick = (user: PendingUser) => {
+        const pm = paymentMethods[user.id];
+        if (pm === 'tc' || pm === 'td') {
+            setPaymentDialogUser(user);
+        } else {
+            handleApprove(user.id);
+        }
     };
 
     return (
@@ -113,7 +127,7 @@ export default function PendingApprovals() {
                                             variant="contained"
                                             color="success"
                                             startIcon={<CheckCircle />}
-                                            onClick={() => handleApprove(u.id)}
+                                            onClick={() => handleApproveClick(u)}
                                         >
                                             Aprobar
                                         </Button>
@@ -137,6 +151,22 @@ export default function PendingApprovals() {
                     ))}
                 </Stack>
             </Box>
+
+            {paymentDialogUser && (
+                <TodoPagoPaymentDialog
+                    open={!!paymentDialogUser}
+                    onClose={() => setPaymentDialogUser(null)}
+                    amount={membershipPrice}
+                    currency="hnl"
+                    taxes={membershipPrice * 0.15}
+                    customerName={paymentDialogUser.name}
+                    customerEmail={paymentDialogUser.email}
+                    onPaymentSuccess={async (transaccionId, cardMasked) => {
+                        handleApprove(paymentDialogUser.id, transaccionId, cardMasked);
+                        setPaymentDialogUser(null);
+                    }}
+                />
+            )}
         </AuthenticatedLayout>
     );
 }

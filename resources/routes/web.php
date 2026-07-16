@@ -302,6 +302,7 @@ Route::middleware(['auth'])->prefix('rc')->name('rc.')->group(function () {
     Route::match(['patch', 'post'], '/articulos/{id}', [ArticleController::class, 'update'])->name('articles.update');
     Route::delete('/articulos/{id}', [ArticleController::class, 'destroy'])->name('articles.destroy');
     Route::post('/articulos/{id}/toggle-featured', [ArticleController::class, 'toggleFeatured'])->name('articles.toggle-featured');
+    Route::post('/articulos/{id}/imagen', [ArticleController::class, 'updateImage'])->name('articles.update-image');
 
     Route::get('/carga-masiva', fn () => Inertia::render('Rc/BulkUpload'))->name('bulk-upload');
     Route::get('/carga-masiva/plantilla', [BulkUploadController::class, 'downloadTemplate'])->name('bulk-upload.template');

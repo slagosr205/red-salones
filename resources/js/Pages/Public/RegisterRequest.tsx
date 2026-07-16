@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import { AccountBalance, CreditCard, Inventory2, Payments } from '@mui/icons-material';
 import { useEffect, useState } from 'react';
+import TodoPagoPaymentDialog from '@/Components/TodoPagoPaymentDialog';
 
 import { toastError, toastSuccess } from '@/rc/toast';
 
@@ -49,6 +50,7 @@ export default function RegisterRequest() {
     const [kitArticles, setKitArticles] = useState<KitArticle[]>([]);
     const [membershipLoading, setMembershipLoading] = useState(true);
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo');
+    const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
 
     useEffect(() => {
         fetch('/api/membresia')
@@ -71,16 +73,19 @@ export default function RegisterRequest() {
         setStep(1);
     };
 
-    const handlePay = async () => {
+    const handlePay = async (transaccionId?: number, cardMasked?: string) => {
         setSaving(true);
         try {
+            const body: Record<string, any> = { name, email, payment_method: paymentMethod };
+            if (transaccionId) body.todopago_transaccion_id = transaccionId;
+            if (cardMasked) body.todopago_card_number_masked = cardMasked;
             const res = await fetch('/api/membresia/pagar', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
                 },
-                body: JSON.stringify({ name, email, payment_method: paymentMethod }),
+                body: JSON.stringify(body),
             });
             const data = await res.json();
             if (data.success) {
@@ -93,6 +98,14 @@ export default function RegisterRequest() {
             toastError('Error de conexion');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handlePayClick = () => {
+        if (paymentMethod === 'tc' || paymentMethod === 'td') {
+            setPaymentDialogOpen(true);
+        } else {
+            handlePay();
         }
     };
 
@@ -256,7 +269,7 @@ export default function RegisterRequest() {
                                                 <Button
                                                     variant="contained"
                                                     fullWidth
-                                                    onClick={handlePay}
+                                                    onClick={handlePayClick}
                                                     disabled={saving}
                                                     startIcon={saving ? <CircularProgress size={18} color="inherit" /> : undefined}
                                                     sx={{ flex: 2, fontWeight: 700 }}
@@ -276,6 +289,19 @@ export default function RegisterRequest() {
                     </Card>
                 </Container>
             </Box>
+
+            <TodoPagoPaymentDialog
+                open={paymentDialogOpen}
+                onClose={() => setPaymentDialogOpen(false)}
+                amount={subtotal}
+                currency="hnl"
+                taxes={isv}
+                customerName={name}
+                customerEmail={email}
+                onPaymentSuccess={async (transaccionId, cardMasked) => {
+                    await handlePay(transaccionId, cardMasked);
+                }}
+            />
         </>
     );
 }

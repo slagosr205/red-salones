@@ -171,6 +171,25 @@ class ArticleController extends Controller
         return redirect()->route('rc.articles')->with('success', "Artículo {$status}.");
     }
 
+    public function updateImage(Request $request, int $id): RedirectResponse
+    {
+        $article = Article::query()->findOrFail($id);
+
+        $validated = $request->validate([
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+        ]);
+
+        if ($article->image_path) {
+            Storage::disk('public')->delete($article->image_path);
+        }
+
+        $article->update([
+            'image_path' => $this->resizeAndSave($request->file('image')),
+        ]);
+
+        return redirect()->route('rc.articles')->with('success', 'Imagen del artículo actualizada.');
+    }
+
     public function featured(): JsonResponse
     {
         $articles = Article::featured()->latest()->get();
