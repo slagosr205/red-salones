@@ -64,6 +64,7 @@ export default function Articles({ articles }: { articles: Article[] }) {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
 
     const filtered = useMemo(() => {
         if (!search.trim()) return articles;
@@ -144,7 +145,8 @@ export default function Articles({ articles }: { articles: Article[] }) {
                                                         component="img"
                                                         src={`/storage/${a.image_path}`}
                                                         alt={a.name}
-                                                        sx={{ width: 44, height: 44, borderRadius: 1, objectFit: 'cover' }}
+                                                        onClick={() => setPreviewImage({ src: `/storage/${a.image_path}`, alt: a.name })}
+                                                        sx={{ width: 44, height: 44, borderRadius: 1, objectFit: 'cover', cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
                                                     />
                                                 ) : (
                                                     <ImageNotSupported sx={{ fontSize: 28, color: 'action.disabled' }} />
@@ -239,6 +241,21 @@ export default function Articles({ articles }: { articles: Article[] }) {
                     />
                 </CardContent>
             </Card>
+
+            {previewImage && (
+                <Box
+                    onClick={() => setPreviewImage(null)}
+                    sx={{ position: 'fixed', inset: 0, zIndex: 1300, bgcolor: 'rgba(0,0,0,0.8)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}
+                >
+                    <Box
+                        component="img"
+                        src={previewImage.src}
+                        alt={previewImage.alt}
+                        onClick={(e) => e.stopPropagation()}
+                        sx={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 2, objectFit: 'contain' }}
+                    />
+                </Box>
+            )}
         </AuthenticatedLayout>
     );
 }
