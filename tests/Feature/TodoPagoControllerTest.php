@@ -45,6 +45,7 @@ class TodoPagoControllerTest extends TestCase
             'identificationTypeID' => 1,
             'taxes' => 15.00,
             'discount' => 10.00,
+            'externalReference' => 'test-ref-001',
         ];
 
         $response = $this->actingAs($user)
@@ -64,7 +65,7 @@ class TodoPagoControllerTest extends TestCase
         $response->assertJsonValidationErrors([
             'accountNumber', 'cardHolderName', 'expirationMonth',
             'expirationYear', 'cvc', 'amount', 'currency',
-            'customerName', 'customerEmail',
+            'customerName', 'customerEmail', 'externalReference',
         ]);
     }
 
@@ -83,6 +84,7 @@ class TodoPagoControllerTest extends TestCase
                 'currency' => 'HNL',
                 'customerName' => 'John Doe',
                 'customerEmail' => 'john@example.com',
+                'externalReference' => 'test-ref-002',
             ]);
 
         $response->assertStatus(422);
@@ -105,6 +107,7 @@ class TodoPagoControllerTest extends TestCase
                 'customerName' => 'John Doe',
                 'customerEmail' => 'john@example.com',
                 'taxes' => -5.00,
+                'externalReference' => 'test-ref-003',
             ]);
 
         $response->assertStatus(422);
@@ -127,9 +130,46 @@ class TodoPagoControllerTest extends TestCase
                 'customerName' => 'John Doe',
                 'customerEmail' => 'john@example.com',
                 'discount' => -5.00,
+                'externalReference' => 'test-ref-004',
             ]);
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['discount']);
+    }
+
+    public function test_direct_payment_idempotency_returns_cached_result(): void
+    {
+        $user = User::factory()->create();
+
+        $mock = $this->mock(TodoPagoClient::class);
+        $mock->shouldReceive('directPayment')
+            ->once()
+            ->andReturn([
+                'ok' => true,
+                'status' => 200,
+                'data' => ['transactionID' => 99999],
+            ]);
+
+        $payload = [
+            'accountNumber' => '4111111111111111',
+            'cardHolderName' => 'John Doe',
+            'expirationMonth' => '12',
+            'expirationYear' => '2028',
+            'cvc' => '123',
+            'amount' => 100.00,
+            'currency' => 'HNL',
+            'customerName' => 'John Doe',
+            'customerEmail' => 'john@example.com',
+            'externalReference' => 'idempotent-ref-001',
+        ];
+
+        $response1 = $this->actingAs($user)
+            ->postJson('/api/todopago/direct-payment', $payload);
+        $response1->assertOk();
+
+        $response2 = $this->actingAs($user)
+            ->postJson('/api/todopago/direct-payment', $payload);
+        $response2->assertOk();
+        $response2->assertJsonFragment(['transactionID' => 99999]);
     }
 }

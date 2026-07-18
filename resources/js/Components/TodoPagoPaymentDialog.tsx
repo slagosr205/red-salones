@@ -95,6 +95,8 @@ export default function TodoPagoPaymentDialog({
 
         setProcessing(true);
 
+        const idempotencyKey = `tp_${customerEmail}_${amount}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
         try {
             const res = await axios.post(route('api.todopago.direct-payment'), {
                 accountNumber: cleanCard,
@@ -108,7 +110,7 @@ export default function TodoPagoPaymentDialog({
                 discount,
                 customerName,
                 customerEmail,
-                externalReference: 'rc-' + Date.now(),
+                externalReference: idempotencyKey,
             });
 
             const body = res.data;

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\TodoPagoClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -81,7 +82,7 @@ class TodoPagoController extends Controller
             'currency' => ['required', 'string', 'max:10'],
             'tokenAccount' => ['required', 'string', 'max:255'],
             'customerWalletID' => ['required', 'integer', 'min:0'],
-            'externalReference' => ['nullable', 'string', 'max:255'],
+            'externalReference' => ['required', 'string', 'max:255'],
             'comment' => ['nullable', 'string', 'max:255'],
             'taxes' => ['nullable', 'numeric', 'min:0'],
             'tips' => ['nullable', 'numeric', 'min:0'],
@@ -97,6 +98,12 @@ class TodoPagoController extends Controller
             'longitude' => ['nullable', 'numeric'],
         ]);
 
+        $idempotencyKey = 'todopago_pay_'.$validated['externalReference'];
+        $cached = Cache::get($idempotencyKey);
+        if ($cached !== null) {
+            return response()->json($cached, 200);
+        }
+
         $payload = $validated;
         // Default IP if not provided.
         $payload['ipAddress'] = $payload['ipAddress'] ?? $request->ip();
@@ -111,6 +118,11 @@ class TodoPagoController extends Controller
             $status = (int) (data_get($resp, 'status') ?? 200);
             if ($status < 100 || $status > 599) {
                 $status = 200;
+            }
+
+            $isSuccess = data_get($resp, 'ok') === true || data_get($resp, 'status') === 200;
+            if ($isSuccess) {
+                Cache::put($idempotencyKey, $resp, now()->addHours(24));
             }
 
             return response()->json($resp, $status);
@@ -141,13 +153,19 @@ class TodoPagoController extends Controller
             'customerEmail' => ['required', 'email', 'max:255'],
             'identificationNumber' => ['nullable', 'string', 'max:50'],
             'identificationTypeID' => ['nullable', 'integer', 'min:1'],
-            'externalReference' => ['nullable', 'string', 'max:255'],
+            'externalReference' => ['required', 'string', 'max:255'],
             'comment' => ['nullable', 'string', 'max:255'],
             'taxes' => ['nullable', 'numeric', 'min:0'],
             'discount' => ['nullable', 'numeric', 'min:0'],
             'tips' => ['nullable', 'numeric', 'min:0'],
             'ipAddress' => ['nullable', 'string', 'max:64'],
         ]);
+
+        $idempotencyKey = 'todopago_direct_'.$validated['externalReference'];
+        $cached = Cache::get($idempotencyKey);
+        if ($cached !== null) {
+            return response()->json($cached, 200);
+        }
 
         $payload = $validated;
         $payload['ipAddress'] = $payload['ipAddress'] ?? $request->ip();
@@ -157,6 +175,11 @@ class TodoPagoController extends Controller
             $status = (int) (data_get($resp, 'status') ?? 200);
             if ($status < 100 || $status > 599) {
                 $status = 200;
+            }
+
+            $isSuccess = data_get($resp, 'ok') === true || data_get($resp, 'status') === 200;
+            if ($isSuccess) {
+                Cache::put($idempotencyKey, $resp, now()->addHours(24));
             }
 
             return response()->json($resp, $status);

@@ -18,6 +18,7 @@ class PaymentController extends Controller
             'currency' => 'required|string|size:3',
             'customerName' => 'required|string|max:255',
             'customerEmail' => 'required|string|email|max:255',
+            'idempotency_key' => 'required|string|max:255',
         ]);
 
         Stripe::setApiKey(config('services.stripe.secret'));
@@ -38,6 +39,8 @@ class PaymentController extends Controller
                 'metadata' => [
                     'customer_name' => $validated['customerName'],
                 ],
+            ], [
+                'idempotency_key' => $validated['idempotency_key'],
             ]);
 
             return response()->json([

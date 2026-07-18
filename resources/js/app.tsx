@@ -97,6 +97,16 @@ router.on('success', (event) => {
     if (flash?.status) toastSuccess(flash.status);
 });
 
+router.on('error', (event) => {
+    if (Object.keys(event.detail.errors).length === 0) {
+        window.location.href = route('login');
+    }
+});
+
+router.on('invalid', () => {
+    window.location.href = route('login');
+});
+
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
     resolve: (name) =>

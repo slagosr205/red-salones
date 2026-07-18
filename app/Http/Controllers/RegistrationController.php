@@ -126,6 +126,9 @@ class RegistrationController extends Controller
                 'customer_name' => $user->name,
                 'customer_email' => $user->email,
                 'notes' => 'Membresia — Kit de bienvenida incluido',
+                'shipping_address' => '',
+                'shipping_latitude' => 0,
+                'shipping_longitude' => 0,
                 'todopago_transaccion_id' => $validated['todopago_transaccion_id'] ?? null,
                 'todopago_card_number_masked' => $validated['todopago_card_number_masked'] ?? null,
             ]);
@@ -235,6 +238,9 @@ class RegistrationController extends Controller
                         'customer_name' => $user->name,
                         'customer_email' => $user->email,
                         'notes' => 'Membresia — Kit de bienvenida incluido',
+                        'shipping_address' => '',
+                        'shipping_latitude' => 0,
+                        'shipping_longitude' => 0,
                         'todopago_transaccion_id' => $validated['todopago_transaccion_id'] ?? null,
                         'todopago_card_number_masked' => $validated['todopago_card_number_masked'] ?? null,
                     ]);
